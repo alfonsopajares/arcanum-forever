@@ -1,0 +1,10 @@
+*.zip
+*.log
+.DS_Store
+Thumbs.db
+work/
+dist/
+skills/publish-addon/
+__pycache__/
+*.pyc
+.venv/
