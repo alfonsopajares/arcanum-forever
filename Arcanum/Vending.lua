@@ -318,6 +318,68 @@ function addon:ClearTradeSupplies()
     self:TradeMessage("Arcanum-added supplies cleared. Other trade items were left alone.")
 end
 
+function addon:IsEnchantingWindowOpen()
+    local visible = false
+    for _, frame in ipairs({ProfessionsFrame or false, TradeSkillFrame or false, CraftFrame or false}) do
+        if frame and frame:IsShown() then visible = true end
+    end
+    if not visible then return false end
+    if C_TradeSkillUI and C_TradeSkillUI.GetBaseProfessionInfo then
+        local ok, info = pcall(C_TradeSkillUI.GetBaseProfessionInfo)
+        info = ok and self:Readable(info)
+        if type(info) == "table" and self:Readable(info.professionID) == 333 then return true end
+    end
+    local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(7411)
+    local name = info and self:Readable(info.name) or (GetSpellInfo and self:Readable(GetSpellInfo(7411)))
+    if type(name) ~= "string" then return false end
+    for _, query in ipairs({GetTradeSkillLine or false, GetCraftDisplaySkillLine or false}) do
+        if query then
+            local ok, skill = pcall(query)
+            if ok and self:Readable(skill) == name then return true end
+        end
+    end
+    return false
+end
+
+function addon:PositionTradeUI()
+    local panel = self.tradeUI
+    if not panel or self.trade.dragging then return end
+    local position = self.db.vending.position
+    panel:ClearAllPoints()
+    if type(position.x) == "number" and type(position.y) == "number" then
+        panel:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", position.x, position.y)
+    else
+        panel:SetPoint("TOPLEFT", TradeFrame, "TOPRIGHT", 8, -28)
+    end
+    self.tradeTab:ClearAllPoints()
+    self.tradeTab:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 0)
+end
+
+function addon:ResetTradePosition()
+    if self.tradeUI then self.tradeUI:StopMovingOrSizing() end
+    self.trade.dragging = nil
+    self.db.vending.position = {}
+    self:PositionTradeUI()
+    self:UpdateTradeUI()
+end
+
+function addon:CloseTradePanel()
+    self.tradeUI:StopMovingOrSizing()
+    self.trade.dragging = nil
+    self.trade.dismissed, self.trade.job = true, nil
+    self:UpdateTradeUI()
+end
+
+function addon:RefreshTradeVisibility()
+    if not self.tradeUI then return end
+    local enchanting = self.db.vending.collapseEnchanting and self:IsEnchantingWindowOpen()
+    if not enchanting then self.trade.enchantingOverride = nil end
+    local collapsed = self.trade.collapsed or (enchanting and not self.trade.enchantingOverride)
+    local visible = self.trade.open and self.db.vending.enabled and not self.trade.dismissed and TradeFrame:IsShown()
+    self.tradeUI:SetShown(visible and not collapsed)
+    self.tradeTab:SetShown(visible and collapsed)
+end
+
 function addon:CreateTradeUI()
     if not TradeFrame or self.tradeUI then return end
     -- Anchor beside TradeFrame without inheriting its window hierarchy.
@@ -327,9 +389,30 @@ function addon:CreateTradeUI()
     panel:SetClampedToScreen(true)
     panel:EnableMouse(true)
     panel:SetSize(260, 438)
-    if panel.CloseButton then panel.CloseButton:Hide() end
+    local close = panel.CloseButton or CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+    close:SetPoint("TOPRIGHT", -4, -4)
+    close:SetScript("OnClick", function() self:CloseTradePanel() end)
+    close:Show()
+    panel:SetMovable(true)
+    local drag = CreateFrame("Frame", nil, panel)
+    drag:SetPoint("TOPLEFT", 8, -2); drag:SetSize(180, 26)
+    drag:EnableMouse(true); drag:RegisterForDrag("LeftButton")
+    drag:SetScript("OnDragStart", function()
+        self.trade.dragging = true; panel:StartMoving()
+    end)
+    drag:SetScript("OnDragStop", function()
+        panel:StopMovingOrSizing(); self.trade.dragging = nil
+        local x, y = panel:GetLeft(), panel:GetTop()
+        if type(x) == "number" and type(y) == "number" then self.db.vending.position = {x=x, y=y} end
+        self:PositionTradeUI()
+    end)
+    panel.dragHandle = drag
+    local collapse = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    collapse:SetPoint("TOPRIGHT", -32, -4); collapse:SetSize(24, 20); collapse:SetText("–")
+    collapse:SetScript("OnClick", function() self.trade.collapsed = true; self:RefreshTradeVisibility() end)
+    panel.collapseButton, panel.closeButton = collapse, close
     local heading = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    heading:SetPoint("TOP", 0, -5)
+    heading:SetPoint("TOPLEFT", 16, -5)
     heading:SetText("Arcanum • Vending")
     local function label(x, y, width, font)
         local value = panel:CreateFontString(nil, "OVERLAY", font or "GameFontNormalSmall")
@@ -376,7 +459,27 @@ function addon:CreateTradeUI()
         panel.inputs[kind] = input
     end
     self.tradeUI = panel
-    TradeFrame:HookScript("OnHide", function() panel:Hide() end)
+    local tab = CreateFrame("Button", "ArcanumVendingTab", UIParent, "UIPanelButtonTemplate")
+    tab:SetSize(110, 26); tab:SetText("Vending  +")
+    tab:SetFrameStrata("FULLSCREEN_DIALOG"); tab:SetFrameLevel(100)
+    tab:SetClampedToScreen(true)
+    tab:SetScript("OnClick", function()
+        self.trade.collapsed, self.trade.enchantingOverride = false, true
+        self:UpdateTradeUI()
+    end)
+    self.tradeTab = tab
+    local watcher = CreateFrame("Frame", nil, UIParent)
+    local elapsed = 0
+    watcher:SetScript("OnUpdate", function(_, delta)
+        elapsed = elapsed + delta
+        if elapsed >= 0.2 then elapsed = 0; self:RefreshTradeVisibility() end
+    end)
+    self.tradeWatcher = watcher
+    TradeFrame:HookScript("OnHide", function() panel:Hide(); tab:Hide(); watcher:Hide() end)
+    TradeFrame:HookScript("OnShow", function()
+        if self.trade.open then watcher:Show(); self:UpdateTradeUI() end
+    end)
+    tab:Hide(); watcher:Hide()
     panel:Hide()
 end
 
@@ -385,10 +488,10 @@ function addon:UpdateTradeUI()
     self:CreateTradeUI()
     if not self.tradeUI then return end
     local panel = self.tradeUI
-    if not TradeFrame:IsShown() then panel:Hide(); return end
-    panel:ClearAllPoints()
-    panel:SetPoint("TOPLEFT", TradeFrame, "TOPRIGHT", 8, -28)
-    panel:SetShown(self.db.vending.enabled)
+    self:PositionTradeUI()
+    self:RefreshTradeVisibility()
+    if not TradeFrame:IsShown() then return end
+    self.tradeWatcher:Show()
     local totals = self:TradeOffer()
     panel.title:SetText(self.trade.name .. "\n" .. (self.trade.class or "Unknown class"))
     local foodStacks, food = self:SupplyStacks("food")
@@ -425,8 +528,11 @@ function addon:VendingEvent(event)
         end
         if C_Timer then C_Timer.After(0, function() self:UpdateTradeUI() end) end
     elseif event == "TRADE_CLOSED" then
+        if self.tradeUI then self.tradeUI:StopMovingOrSizing() end
+        self.trade.dragging = nil
         self.trade.open, self.trade.job = false, nil
         if self.tradeUI then self.tradeUI:Hide() end
+        if self.tradeTab then self.tradeTab:Hide(); self.tradeWatcher:Hide() end
     elseif self.trade.open then
         self:UpdateTradeUI()
     end

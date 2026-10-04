@@ -5,7 +5,7 @@
 A circular mage toolbox for **World of Warcraft: Forever**. Keep your spells,
 mana recovery, conjured supplies, and reminders together in one configurable orb.
 
-**Version 0.8.0 — Beta.** Built for Forever 1.60.1 (interface 16001).
+**Version 0.8.1 — Local testing.** Built for Forever 1.60.1 (interface 16001).
 Compatibility with Retail and other Classic clients has not been verified.
 
 ## Features
@@ -109,6 +109,14 @@ your target, or your target is friendly or dead.
 Open `/arc` → **Vending** to enable or disable the trade helper, edit per-class
 food and water totals, choose personal reserves, and limit supplies to ranks the
 recipient can use. When a trade opens, the helper appears to its right.
+
+Drag the vending title to move it; its position is saved for your mage. Use
+**Reset vending position** in Vending settings to restore the default location.
+The **–** button collapses it to a small reopening tab. **X** hides it for the
+current trade; it returns on the next trade. Closing stops pending supply moves.
+**Collapse while enchanting** is enabled by default and can be disabled. You can
+reopen the tab while enchanting; otherwise the panel returns when enchanting
+closes. A panel you collapsed manually stays collapsed.
 
 - **Fill preset** adds only the amount still needed to reach the trade's totals.
   Repeated fills do not double a completed offer. It can combine matching bag

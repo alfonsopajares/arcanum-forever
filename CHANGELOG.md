@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 — Local testing — October 3, 2026
+
+- Close vending for the current trade, or collapse it to a reopening tab.
+- Drag the vending title to save its position; reset it under Vending settings.
+- Optional automatic collapse while enchanting, with manual reopening and restoration.
+- Preserve manual visibility and position through trade and bag updates.
+
 ## 0.8.0 — October 3, 2026
 
 Initial public beta of **Arcanum Forever** for WoW: Forever 1.60.1.

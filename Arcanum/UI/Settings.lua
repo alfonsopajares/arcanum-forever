@@ -14,6 +14,7 @@ function addon:SettingsChanged()
     self:UpdateReminders()
     self:UpdateActionDisplays()
     self:UpdateIgniteDisplay()
+    if self.trade.open then self:UpdateTradeUI() end
     if self.settings then
         self.settings.status:SetText(InCombatLockdown() and "Saved. Circle changes apply after combat." or "Settings saved automatically.")
     end
@@ -183,16 +184,22 @@ function addon:CreateSettings()
         function() return self.db.vending.enabled end, function(value) self.db.vending.enabled = value end)
     check(vending, "Give only ranks the recipient can use", 0, -30,
         function() return self.db.vending.bestRank end, function(value) self.db.vending.bestRank = value end)
-    number(vending, "Keep food for yourself (0–120)", 0, -67, 0, 120, false,
+    check(vending, "Collapse while enchanting", 0, -60,
+        function() return self.db.vending.collapseEnchanting end, function(value) self.db.vending.collapseEnchanting = value end)
+    local resetVending = CreateFrame("Button", nil, vending, "UIPanelButtonTemplate")
+    resetVending:SetSize(200, 24); resetVending:SetPoint("TOPLEFT", 0, -92)
+    resetVending:SetText("Reset vending position")
+    resetVending:SetScript("OnClick", function() self:ResetTradePosition() end)
+    number(vending, "Keep food for yourself (0–120)", 0, -130, 0, 120, false,
         function() return self.db.vending.reserveFood end, function(value) self.db.vending.reserveFood = value end)
-    number(vending, "Keep water for yourself (0–120)", 0, -101, 0, 120, false,
+    number(vending, "Keep water for yourself (0–120)", 0, -164, 0, 120, false,
         function() return self.db.vending.reserveWater end, function(value) self.db.vending.reserveWater = value end)
-    text(vending, "Preset totals (individual items, 0–120)", 0, -143, 300, "GameFontNormal")
-    text(vending, "Food", 300, -143, 60, "GameFontNormal")
-    text(vending, "Water", 400, -143, 60, "GameFontNormal")
+    text(vending, "Preset totals (individual items, 0–120)", 0, -200, 300, "GameFontNormal")
+    text(vending, "Food", 300, -200, 60, "GameFontNormal")
+    text(vending, "Water", 400, -200, 60, "GameFontNormal")
     local classes = {"WARRIOR","ROGUE","HUNTER","PRIEST","MAGE","WARLOCK","PALADIN","SHAMAN","DRUID","UNKNOWN"}
     for index, class in ipairs(classes) do
-        local y = -164 - (index - 1) * 26
+        local y = -220 - (index - 1) * 24
         text(vending, class == "UNKNOWN" and "Unknown class" or (class:sub(1,1) .. class:sub(2):lower()), 0, y - 5, 260)
         for column, kind in ipairs({"food","water"}) do
             number(vending, nil, 300 + (column - 1) * 100, y, 0, 120, false,
@@ -200,7 +207,7 @@ function addon:CreateSettings()
                 function(value) self.db.vending.presets[class][kind] = value end)
         end
     end
-    text(vending, "Fill preset tops up the current offer; it never doubles it.\nYou confirm each trade with the normal Trade button.", 0, -433, 530)
+    text(vending, "Drag the vending title to move it. – collapses; X hides for this trade.\nFill preset tops up the offer. You confirm each trade yourself.", 0, -466, 530)
     local prep = page("Preparation", 5, "Prep")
     window.preparationInputs = {}
     choice(prep, "Preparation profile", 0, {{"auto","Automatic (group)"},{"solo","Solo"},{"party","Party"},{"raid","Raid"}},
