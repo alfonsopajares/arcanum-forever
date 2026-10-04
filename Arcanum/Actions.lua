@@ -81,6 +81,7 @@ function addon:BuildActions()
     self.trackedItems = {}
     for _, category in ipairs(self.categories) do byCategory[category.id] = {} end
     for _, definition in ipairs(self.spells) do
+        if definition.reagent then self.trackedItems[definition.reagent] = true end
         local id, rank
         for index, candidate in ipairs(definition.ranks) do
             if self:KnownSpell(candidate) then id, rank = candidate, index end
@@ -130,6 +131,10 @@ function addon:BuildActions()
             end
         end
     end
+    self.trackedItems[6948] = true
+    if self:ItemCount(6948) > 0 then
+        byCategory.hearthstone = {{kind="item", id=6948, name="Hearthstone", icon="Interface\\Icons\\INV_Misc_Rune_01", self=true}}
+    end
     return byCategory
 end
 
@@ -140,7 +145,7 @@ function addon:RefreshActions()
     self:RefreshCenterAction(actions)
     self:RefreshPreparationActions(actions)
     local visible = {}
-    for _, category in ipairs(self.categories) do
+    for _, category in ipairs(self:OrderedCategories()) do
         local menu, toggle = self.menus[category.id], self.toggles[category.id]
         local list = {}
         for _, action in ipairs(actions[category.id]) do
@@ -157,12 +162,13 @@ function addon:RefreshActions()
             button:SetAttribute("item", nil)
             button.action = nil
         end
-        for index, action in ipairs(list) do
+        for index, action in ipairs(category.direct and {} or list) do
             local button = menu.rows[index]
             if not button then
                 button = self:CreateActionButton(menu, index)
                 menu.rows[index] = button
             end
+            button.categoryID = category.id
             self:BindAction(button, action)
             local columns = self.db.iconsPerRow
             button:ClearAllPoints()
@@ -171,11 +177,22 @@ function addon:RefreshActions()
         end
         menu:SetSize(math.max(1, math.min(self.db.iconsPerRow, #list)) * 44 + 8,
             math.max(1, math.ceil(#list / self.db.iconsPerRow)) * 44 + 8)
+        local last
+        for _, action in ipairs(list) do
+            if action.kind == "spell" and self:SelectionMatches(category.id, action) then last = action end
+        end
+        self:BindLastSelection(category.id, last)
+        toggle.directAction = category.direct and list[1] or nil
+        if category.direct then
+            toggle:SetAttribute("type1", toggle.directAction and "item" or "")
+            toggle:SetAttribute("item1", toggle.directAction and "item:" .. toggle.directAction.id or nil)
+            toggle:SetAttribute("unit1", "player")
+        end
         local enabled = #list > 0 and self.db.categoryEnabled[category.id] ~= false
         toggle:SetShown(enabled)
         toggle:SetAttribute("hover-enabled", self.db.hover)
         toggle:SetAttribute("close-delay", self.db.closeDelay)
-        if wasShown and enabled then
+        if wasShown and enabled and not category.direct then
             menu:Show()
             if RegisterAutoHide and AddToAutoHide and not menu:GetAttribute("pinned") then
                 RegisterAutoHide(menu, self.db.closeDelay)
@@ -205,6 +222,7 @@ function addon:RefreshActions()
     end
     self:UpdateActionDisplays()
     self:UpdateReminders()
+    self:UpdateBuffTimers()
 end
 
 function addon:DisplayCooldown(widget, action, enabled)
@@ -231,10 +249,17 @@ function addon:UpdateActionDisplays()
     self:UpdateCenterDisplay()
     local centerAction = self.sphere.displayMode ~= "eatdrink" and self.sphere.action or nil
     self:DisplayCooldown(self.centerCooldown, centerAction, self.db.centerCooldown)
+    for _, toggle in pairs(self.toggles) do
+        if toggle.directCooldown then
+            toggle.directCooldown:SetHideCountdownNumbers(not self.db.showCooldownNumbers)
+            self:DisplayCooldown(toggle.directCooldown, toggle.directAction, self.db.showCooldowns)
+        end
+    end
     for _, menu in pairs(self.menus) do
         for _, button in ipairs(menu.rows) do
             local action = button.action
             if action then
+                if button.cooldown.SetHideCountdownNumbers then button.cooldown:SetHideCountdownNumbers(not self.db.showCooldownNumbers) end
                 if action.countItem and self.db.showCounts then
                     -- Count labels go straight to the native formatter.
                     local query = C_Item and C_Item.GetItemCount or GetItemCount

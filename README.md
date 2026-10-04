@@ -5,7 +5,7 @@
 A circular mage toolbox for **World of Warcraft: Forever**. Keep your spells,
 mana recovery, conjured supplies, and reminders together in one configurable orb.
 
-**Version 0.8.1 — Beta.** Built for Forever 1.60.1 (interface 16001).
+**Version 0.9.4 — Beta.** Built for Forever 1.60.1 (interface 16001).
 Compatibility with Retail and other Classic clients has not been verified.
 
 ## Features
@@ -30,6 +30,16 @@ Compatibility with Retail and other Classic clients has not been verified.
   from another mage, and retain recent completed-delivery history across reloads.
 - **Optional keybindings.** Bind preparation, mana recovery, eating and drinking,
   utility spells, and self buffs.
+- **Mage messages.** Choose practical announcements, random funny speeches, or
+  your own text for portals, Polymorph, Evocation, and completed supply trades.
+- **Reagent restocking.** Optionally refill reagents for learned spells at vendors,
+  with item targets, a spending cap, and a gold reserve. Bags stay as you arranged them.
+- **Personal layout.** Reorder circle categories, repeat the last selected spell
+  with Shift-click, and show buff timers, cooldown numbers, and mana color presets.
+- **Recipient-level buffs.** Adjust learned Intellect, Dampen Magic, and Amplify
+  Magic ranks for lower-level targets outside combat, with a conservative combat rank.
+- **Convenient shortcuts.** Click the standalone Hearthstone circle button, or open options
+  from an optional draggable minimap button.
 
 ## Getting started
 
@@ -46,9 +56,72 @@ away closes the flyout after the configured delay. Click an outer button to pin
 its menu open; click it again to close it. Right-click a friendly buff or Remove
 Lesser Curse to cast it on yourself.
 
+**Shift + left-click an outer button** to repeat its last selected spell. The
+shortcut is remembered per character and follows learned rank upgrades. A new
+selection made during combat becomes the shortcut once combat ends. Reorder
+categories under **Flyouts** using the up/down arrows; hidden categories keep their place.
+
 Right-click the center orb to open settings. Left-click uses your chosen center
 action. **Shift + left-click casts Evocation when learned**, regardless of your
 selected center action.
+
+**Left-click the standalone Hearthstone circle button** to return home. It has
+no flyout, shows the item cooldown, and appears only while your Hearthstone is in
+your bags. Hide it under **Circle** or reorder it under **Flyouts**. Middle-click
+on the orb has no action.
+
+The optional minimap button opens settings on click. Drag it around the minimap
+to save its position, or hide it under **Circle** settings.
+
+### Recipient-level buff ranks
+
+Under **Buffs / Travel**, enable recipient-level ranks for Arcane Intellect,
+Dampen Magic, and Amplify Magic. Outside combat, left-click chooses an appropriate
+learned rank for your friendly target's level using the original vanilla rank
+thresholds. It also applies to the outer button's Shift-click last-spell shortcut.
+Right-click a flyout buff still uses the highest learned rank on yourself.
+
+WoW restricts changing spell bindings during combat. Combat clicks therefore use
+the lowest learned rank; normal recipient-level selection returns after combat.
+Unreadable target levels also use the lowest learned rank. If no learned rank
+meets a readable target's level requirement, left-click does nothing. Group buffs
+retain their normal binding. Disable this option to always use the highest rank.
+
+### Messages
+
+Open **Messages** in `/arc` to enable or disable announcements independently of
+reminders. Portals default to funny messages after successful casts; Polymorph
+defaults to a practical announcement. Evocation and completed-trade messages are
+optional. Messages go to your party or raid, or only to your own chat when solo.
+Choose **Only me** to keep all messages private.
+
+Each event has a style and timing: casting starts, successful completion, or
+both. Evocation completion requires a full channel. Failed casts and cancelled
+trades do not produce completion messages. A repeat delay prevents frequent
+announcements of the same event. Funny / roleplay uses five messages per event
+and timing, cycling through all five in shuffled order before starting another
+cycle. The last message of one cycle never immediately repeats in the next.
+Practical announcements and your own text do not rotate. Repeated funny previews
+cycle through all five lines separately, without advancing the in-game rotation.
+
+Custom text supports `{player}`, `{target}`, `{destination}`, `{food}`, `{water}`,
+and `{phase}`. Use up to three lines, each no more than 255 bytes. The Preview
+button displays a sample only to you without sending it to the group.
+
+### Reagent restocking
+
+Open **Reagents** in `/arc` and enable automatic restocking. It is disabled by
+default. Set bag-stock targets for Arcane Powder, Rune of Teleportation, Rune of
+Portals, and Light Feather. Only reagents needed by learned spells are purchased.
+
+Restocking starts when you open a vendor and stops at your targets, the spending
+limit for that visit, the gold you want to keep, vendor stock, or bag capacity.
+Purchases use normal gold offers and wait for bag confirmation before proceeding.
+This feature does not move or sort your existing items.
+
+Under **Display**, optional Intellect/Armor timers appear beneath those category
+buttons. Protected or unavailable duration information leaves the timer blank.
+Cooldown numbers and mana display colors can also be changed there.
 
 ### Center action
 

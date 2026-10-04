@@ -21,6 +21,23 @@ addon.defaults = {
     showBadges = true,
     centerCooldown = true,
     showIgnite = true,
+    showBuffTimers = true,
+    showCooldownNumbers = true,
+    colorTheme = "arcane",
+    recipientBuffRanks = true,
+    minimap = {enabled=true, angle=225},
+    categoryOrder = {},
+    lastSelections = {},
+    messages = {
+        enabled = true, channel = "group", delay = 30,
+        events = {
+            portal = {enabled=true, style="funny", timing="success", custom=""},
+            polymorph = {enabled=true, style="useful", timing="success", custom=""},
+            evocation = {enabled=false, style="funny", timing="start", custom=""},
+            trade = {enabled=false, style="funny", timing="success", custom=""},
+        },
+    },
+    restock = {enabled=false, maxGold=5, keepGold=1, targets={[17020]=20, [17031]=10, [17032]=10, [17056]=10}},
     debugLogging = false,
     preparation = {
         profile = "auto", showPrepare = true, trackTrades = true, historyMinutes = 30,
@@ -98,6 +115,8 @@ function addon:InitializeSettings()
 end
 
 function addon:NormalizeSettings()
+    if self.db.hearthstoneShortcut == false and self.db.categoryEnabled.hearthstone == nil then self.db.categoryEnabled.hearthstone = false end
+    self.db.hearthstoneShortcut = nil
     if self.db.centerAction == "drink" or self.db.centerAction == "water" then self.db.centerAction = "eatdrink" end
     self.db.preparation.showEatDrink = nil
 end
@@ -157,6 +176,10 @@ function addon:ApplySettings()
     if self.positionPending then self:RestorePosition(); self.positionPending = false end
     self.frame:SetScale(self.db.scale / 100)
     self.frame:SetShown(self.db.visible)
+    local color = self.themes[self.db.colorTheme] or self.themes.arcane
+    self.manaBar:SetStatusBarColor(unpack(color))
+    self.manaText:SetTextColor(unpack(color))
+    self:UpdateMinimapButton()
     self:RefreshActions()
     self:UpdateMana()
     if self.trade and self.trade.open then self:UpdateTradeUI() end

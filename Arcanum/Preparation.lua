@@ -99,6 +99,10 @@ function addon:DistributionEvent(event, first, message)
         local snapshot = self.acceptedTrade
         if not snapshot or not ERR_TRADE_COMPLETE or message ~= ERR_TRADE_COMPLETE then return end
         self.acceptedTrade = nil
+        if snapshot.closed and now() - snapshot.closed > 5 then return end
+        if snapshot.food + snapshot.water > 0 then
+            self:SendMageMessage("trade", "success", {target=snapshot.name, food=snapshot.food, water=snapshot.water})
+        end
         if not self.db.preparation.trackTrades or (snapshot.closed and now() - snapshot.closed > 5) then return end
         if snapshot.food + snapshot.water == 0 then return end
         self:PruneDistribution()

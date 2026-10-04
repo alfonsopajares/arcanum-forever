@@ -10,4 +10,5 @@ addon.categories = {
     { id = "refreshments", label = "Food & water", icon = "Interface\\Icons\\INV_Drink_18", description = "Conjure, eat, and drink" },
     { id = "defenses", label = "Defenses", icon = "Interface\\Icons\\Spell_Frost_Frost", description = "Shields, wards, and defensive cooldowns" },
     { id = "utility", label = "Utility", icon = "Interface\\Icons\\Spell_Nature_Polymorph", description = "Polymorph, curse removal, and utility" },
+    { id = "hearthstone", label = "Hearthstone", icon = "Interface\\Icons\\INV_Misc_Rune_01", description = "Return home", direct = true },
 }

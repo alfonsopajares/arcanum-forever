@@ -21,6 +21,8 @@ lua.execute((ROOT / "tests" / "settings-vending.lua").read_text(encoding="utf-8-
 lua.execute((ROOT / "tests" / "preparation.lua").read_text(encoding="utf-8-sig"))
 lua.execute((ROOT / "tests" / "usability.lua").read_text(encoding="utf-8-sig"))
 lua.execute((ROOT / "tests" / "ignite.lua").read_text(encoding="utf-8-sig"))
+lua.execute((ROOT / "tests" / "customization.lua").read_text(encoding="utf-8-sig"))
+lua.execute((ROOT / "tests" / "convenience.lua").read_text(encoding="utf-8-sig"))
 bindings = ET.parse(ROOT / "Arcanum" / "Bindings.xml").getroot()
 for binding in bindings:
     frame_name = binding.attrib["name"].removeprefix("CLICK ").split(":")[0]

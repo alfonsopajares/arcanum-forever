@@ -22,7 +22,7 @@ end
 
 function addon:CreateSettings()
     local window = CreateFrame("Frame", "ArcanumSettingsFrame", UIParent, "BackdropTemplate")
-    window:SetSize(600, 620)
+    window:SetSize(760, 650)
     window:SetPoint("CENTER")
     window:SetFrameStrata("DIALOG")
     window:SetClampedToScreen(true)
@@ -31,26 +31,38 @@ function addon:CreateSettings()
     window:RegisterForDrag("LeftButton")
     window:SetScript("OnDragStart", function() window:StartMoving() end)
     window:SetScript("OnDragStop", function() window:StopMovingOrSizing() end)
-    window:SetBackdrop({bgFile="Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile="Interface\\Tooltips\\UI-Tooltip-Border", tile=true, tileSize=16, edgeSize=16, insets={left=4,right=4,top=4,bottom=4}})
-    text(window, "Arcanum Forever Settings", 20, -20, 450, "GameFontNormalLarge")
+    window:SetBackdrop({bgFile="Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile="Interface\\DialogFrame\\UI-DialogBox-Border", tile=true, tileSize=32, edgeSize=32, insets={left=11,right=12,top=12,bottom=11}})
+    local portrait = window:CreateTexture(nil, "ARTWORK")
+    portrait:SetSize(56, 56); portrait:SetPoint("TOPLEFT", 18, -14)
+    portrait:SetTexture("Interface\\AddOns\\Arcanum\\Media\\Orb")
+    text(window, "Arcanum Forever", 86, -20, 450, "GameFontNormalLarge")
+    text(window, "Mage spellbook & options", 86, -44, 450)
+    window.pageTitle = text(window, "", 24, -78, 550, "GameFontNormalLarge")
+    window.pageTitle:SetTextColor(0.45, 0.8, 1)
     local close = CreateFrame("Button", nil, window, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -4, -4)
     close:SetScript("OnClick", function() window:Hide() end)
-    window.pages, window.refreshers, window.choices = {}, {}, {}
-    window.status = text(window, "Settings saved automatically.", 20, -590, 550)
+    window.pages, window.refreshers, window.choices, window.tabs = {}, {}, {}, {}
+    window.status = text(window, "Settings saved automatically.", 24, -620, 710)
     self.settings = window
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "ArcanumSettingsFrame" end
 
     local function page(name, index, label)
         local panel = CreateFrame("Frame", nil, window)
         panel:SetSize(550, 500)
-        panel:SetPoint("TOPLEFT", 24, -88)
+        panel:SetPoint("TOPLEFT", 24, -110)
         panel:Hide()
         window.pages[name] = panel
         local tab = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-        tab:SetSize(68, 26)
-        tab:SetPoint("TOPLEFT", 24 + (index - 1) * 70, -52)
+        tab:SetSize(148, 38)
+        tab:SetPoint("TOPRIGHT", -18, -96 - (index - 1) * 46)
         tab:SetText(label or name)
+        local icons = {Circle="Spell_Arcane_Arcane04", Flyouts="INV_Misc_Book_09", Display="INV_Misc_Gem_Sapphire_02",
+            Vending="INV_Drink_18", Preparation="INV_Misc_Food_10", Reminders="Spell_Holy_MagicalSentry",
+            Distribution="INV_Misc_Coin_01", Support="INV_Misc_QuestionMark", Messages="INV_Misc_Note_01", Restocking="INV_Misc_Rune_01", Buffs="Spell_Holy_MagicalSentry"}
+        local icon = tab:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(20, 20); icon:SetPoint("LEFT", 4, 0); icon:SetTexture("Interface\\Icons\\" .. icons[name])
+        window.tabs[name] = tab
         tab:SetScript("OnClick", function() self:OpenSettings(name) end)
         return panel
     end
@@ -151,7 +163,7 @@ function addon:CreateSettings()
     number(circle, "Circle size (50–200%)", 0, -80, 50, 200, false, getter("scale"), setter("scale"))
     number(circle, "Button distance (64–180)", 0, -116, 64, 180, false, getter("radius"), setter("radius"))
     number(circle, "Rotation (0–360 degrees)", 0, -152, 0, 360, false, getter("rotation"), setter("rotation"))
-    text(circle, "Visible categories — only learned spells appear", 0, -204, 500, "GameFontNormal")
+    text(circle, "Circle buttons — learned spells and carried items", 0, -204, 500, "GameFontNormal")
     for index, category in ipairs(self.categories) do
         check(circle, category.label, ((index - 1) % 2) * 265, -232 - math.floor((index - 1) / 2) * 34,
             function() return self.db.categoryEnabled[category.id] ~= false end,
@@ -160,13 +172,29 @@ function addon:CreateSettings()
     local reset = CreateFrame("Button", nil, circle, "UIPanelButtonTemplate")
     reset:SetSize(180, 24); reset:SetPoint("TOPLEFT", 0, -398); reset:SetText("Reset circle layout")
     reset:SetScript("OnClick", function() self:HandleCommand("reset"); self:OpenSettings("Circle") end)
+    check(circle, "Show minimap options button", 0, -438,
+        function() return self.db.minimap.enabled end, function(value) self.db.minimap.enabled = value end)
 
     local menus = page("Flyouts", 2)
     check(menus, "Open flyouts on hover", 0, 0, getter("hover"), setter("hover"))
     number(menus, "Close delay (0.1–3 seconds)", 0, -46, 0.1, 3, true, getter("closeDelay"), setter("closeDelay"))
     number(menus, "Icons per row (1–8)", 0, -84, 1, 8, false, getter("iconsPerRow"), setter("iconsPerRow"))
     choice(menus, "Flyout direction", -128, {{"auto","Automatic"},{"left","Left"},{"right","Right"},{"up","Up"},{"down","Down"}}, getter("flyoutDirection"), setter("flyoutDirection"))
-    text(menus, "Click a circle button to pin its flyout. Click again to close.\nFlyouts stay open while you move onto their spell icons.", 0, -190, 520)
+    text(menus, "Click a circle button to pin its flyout. Click again to close.\nShift + left-click repeats the last selected spell in that category.\nA selection made during combat becomes the shortcut after combat.\nFlyouts stay open while you move onto their spell icons.", 0, -190, 520)
+    text(menus, "Clockwise button order (hidden categories keep their place)", 0, -274, 530, "GameFontNormal")
+    window.orderLabels = {}
+    for index = 1, #self.categories do
+        window.orderLabels[index] = text(menus, "", 0, -302 - (index-1)*22, 270)
+        for column, direction in ipairs({-1,1}) do
+            local move = CreateFrame("Button", nil, menus)
+            move:SetSize(22, 22); move:SetPoint("TOPLEFT", 292 + (column-1)*28, -296 - (index-1)*22)
+            local texture = "Interface\\Buttons\\UI-ScrollBar-Scroll" .. (direction == -1 and "Up" or "Down") .. "Button-"
+            move:SetNormalTexture(texture .. "Up")
+            move:SetPushedTexture(texture .. "Down")
+            move:SetHighlightTexture(texture .. "Highlight")
+            move:SetScript("OnClick", function() self:MoveCategory(self:OrderedCategories()[index].id, direction) end)
+        end
+    end
 
     local display = page("Display", 3)
     choice(display, "Orb action and center display", 0, {{"gem","Mana Gem"},{"evocation","Evocation"},{"eatdrink","Eat + Drink"}}, getter("centerAction"), setter("centerAction"))
@@ -178,6 +206,13 @@ function addon:CreateSettings()
     text(display, "Mana Gem shows total gems in your bags; Eat + Drink shows food and water counts.\nEvocation shows your current mana. Left-click uses the selected action.\nShift + left-click casts learned Evocation. Right-click opens options.", 0, -230, 530)
     check(display, "Show prominent Ignite stacks on your enemy target", 0, -300, getter("showIgnite"), setter("showIgnite"))
     text(display, "Ignite appears below screen center, separate from the circle.\nTracks the target's Ignite, including another mage's application.", 0, -344, 530)
+    check(display, "Show Intellect and Armor time below their buttons", 0, -390, getter("showBuffTimers"), setter("showBuffTimers"))
+    check(display, "Show cooldown numbers on spell icons", 0, -424, getter("showCooldownNumbers"), setter("showCooldownNumbers"))
+    choice(display, "Mana display color", -466, {{"arcane","Arcane blue"},{"violet","Violet"},{"frost","Frost"},{"gold","Gold"}}, getter("colorTheme"), setter("colorTheme"))
+    local buffs = page("Buffs", 8, "Buffs / Travel")
+    check(buffs, "Choose buff rank for the recipient's level", 0, 0, getter("recipientBuffRanks"), setter("recipientBuffRanks"))
+    text(buffs, "Applies to Arcane Intellect, Dampen Magic, and Amplify Magic.\nOutside combat, left-click uses the highest learned rank your target can receive.\nDuring combat, left-click uses the lowest learned rank.\nRight-click still casts your highest learned rank on yourself.\nUnknown target levels use the lowest learned rank.\nGroup buffs keep their normal spell binding.", 0, -48, 530)
+    text(buffs, "Hearthstone has its own outer circle button. Left-click it to return home.\nIt has no flyout and shows only while your Hearthstone is carried.\nHide it under Circle; reorder it under Flyouts.", 0, -186, 530)
 
     local vending = page("Vending", 4)
     check(vending, "Enable vending trade controls", 0, 0,
@@ -259,7 +294,7 @@ function addon:CreateSettings()
     window.distributionContent = content
     window.distributionText = text(content, "", 0, 0, 500)
     text(distribution, "History survives reloads until it expires. Cancelled trades are never counted.", 0, -474, 530)
-    local support = page("Support", 8)
+    local support = page("Support", 11)
     check(support, "Enable troubleshooting log (last 200 entries)", 0, 0, getter("debugLogging"), setter("debugLogging"))
     choice(support, "Copy settings from another mage", -40, function() return self:CharacterOptions() end,
         function() return self.copySource or "" end, function(value) self.copySource = value end)
@@ -274,6 +309,73 @@ function addon:CreateSettings()
     local logContent = CreateFrame("Frame", nil, logScroll); logContent:SetSize(500, 310); logScroll:SetScrollChild(logContent)
     window.logContent, window.logText = logContent, text(logContent, "", 0, 0, 500)
     text(support, "Settings and history are separate for each mage. Copying keeps your history.", 0, -474, 530)
+
+    local messages = page("Messages", 9)
+    check(messages, "Enable spell and trade messages", 0, 0,
+        function() return self.db.messages.enabled end, function(value) self.db.messages.enabled = value end)
+    choice(messages, "Where to send", -38, {{"group","Party / raid (local when solo)"},{"local","Only me"}},
+        function() return self.db.messages.channel end, function(value) self.db.messages.channel = value end)
+    number(messages, "Repeat delay per event (seconds)", 0, -78, 5, 600, false,
+        function() return self.db.messages.delay end, function(value) self.db.messages.delay = value end)
+    for index, event in ipairs(self.messageEvents) do
+        local key = event[1]
+        check(messages, event[2], ((index-1)%2)*265, -116-math.floor((index-1)/2)*30,
+            function() return self.db.messages.events[key].enabled end, function(value) self.db.messages.events[key].enabled = value end)
+    end
+    local function selected() return self.db.messages.events[window.messageEvent or "portal"] end
+    choice(messages, "Edit messages for", -188, self.messageEvents,
+        function() return window.messageEvent or "portal" end,
+        function(value) window.messageEvent = value; self:OpenSettings("Messages") end)
+    choice(messages, "Message style", -228, {{"useful","Short & useful"},{"funny","Funny / roleplay"},{"custom","My own text"}},
+        function() return selected().style end, function(value) selected().style = value end)
+    choice(messages, "When to announce", -268, function()
+        return window.messageEvent == "trade" and {{"success","After completion"}}
+            or {{"start","When casting starts"},{"success","After successful cast"},{"both","Start and completion"}}
+        end, function() return selected().timing end, function(value) selected().timing = value end)
+    text(messages, "Custom text (up to 3 lines; 255 bytes per line)", 0, -312, 530, "GameFontNormal")
+    local custom = CreateFrame("EditBox", nil, messages, "InputBoxTemplate")
+    custom:SetSize(500, 70); custom:SetPoint("TOPLEFT", 8, -336); custom:SetAutoFocus(false)
+    custom:SetMultiLine(true); custom:SetMaxLetters(700)
+    local function saveSpeech()
+        local value, count = custom:GetText() or "", 0
+        for line in value:gmatch("[^\r\n]+") do
+            count = count + 1
+            if count > 3 or #line > 255 then
+                window.status:SetText("Custom messages need at most 3 lines, each at most 255 bytes.")
+                return false
+            end
+        end
+        selected().custom = value
+        return true
+    end
+    custom:SetScript("OnEditFocusLost", function() if saveSpeech() then self:SettingsChanged() end end)
+    custom:SetScript("OnEscapePressed", function() custom:ClearFocus() end)
+    window.refreshers[#window.refreshers+1] = function() custom:SetText(selected().custom) end
+    window.messageInput = custom
+    text(messages, "Tokens: {player}, {target}, {destination}, {food}, {water}, {phase}.\nFunny / roleplay cycles through 5 messages per event and timing.\nReminders have their own switches.", 0, -418, 530)
+    local preview = CreateFrame("Button", nil, messages, "UIPanelButtonTemplate")
+    preview:SetSize(200, 24); preview:SetPoint("TOPLEFT", 0, -470); preview:SetText("Preview (only you see it)")
+    preview:SetScript("OnClick", function()
+        if not saveSpeech() then return end
+        local value = self:MessageText(window.messageEvent or "portal", selected().timing == "start" and "start" or "success",
+            {target="Nix", destination="Stormwind", food=20, water=40}, true)
+        if value then print("|cff66bbffArcanum preview:|r " .. value) end
+    end)
+
+    local restock = page("Restocking", 10, "Reagents")
+    check(restock, "Automatically restock at reagent vendors", 0, 0,
+        function() return self.db.restock.enabled end, function(value) self.db.restock.enabled = value end)
+    text(restock, "Buy only reagents for spells you have learned.\nTargets count items in your bags. Your bags are never rearranged.", 0, -46, 530)
+    for index, reagent in ipairs(self.reagents) do
+        local id = reagent.id
+        number(restock, reagent.label .. " target", 0, -106-(index-1)*40, 0, 200, false,
+            function() return self.db.restock.targets[id] end, function(value) self.db.restock.targets[id] = value end)
+    end
+    number(restock, "Maximum gold per vendor visit", 0, -286, 0, 100, true,
+        function() return self.db.restock.maxGold end, function(value) self.db.restock.maxGold = value end)
+    number(restock, "Gold to keep", 0, -328, 0, 10000, true,
+        function() return self.db.restock.keepGold end, function(value) self.db.restock.keepGold = value end)
+    text(restock, "Restocking starts when you open a vendor. Purchases stop at your targets,\nspending limit, gold reserve, available stock, or bag capacity.\nOnly normal gold purchases are used; special currency offers are skipped.\nDisabled by default. Enable above when you want automatic purchases.", 0, -396, 530)
     window:Hide()
 end
 
@@ -283,8 +385,11 @@ function addon:OpenSettings(page)
     local selected = page or self.settings.selected or "Circle"
     if not self.settings.pages[selected] then selected = "Circle" end
     self.settings.selected = selected
+    self.settings.pageTitle:SetText(selected == "Restocking" and "Reagent restocking" or selected)
     for name, panel in pairs(self.settings.pages) do panel:SetShown(name == selected) end
+    for name, tab in pairs(self.settings.tabs) do tab:SetEnabled(name ~= selected) end
     self.settings:Show()
     self:RefreshPreparationUI()
     self:RefreshLogUI()
+    self:RefreshCategoryOrderUI()
 end

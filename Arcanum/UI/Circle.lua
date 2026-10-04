@@ -175,13 +175,16 @@ function addon:CreateActionButton(menu, index)
         local action = button.action
         if not action then return end
         GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
-        if action.kind == "spell" then GameTooltip:SetSpellByID(action.id)
+        if action.kind == "spell" then GameTooltip:SetSpellByID(self:RecipientBuffSpell(action, InCombatLockdown()) or action.id)
         else GameTooltip:SetItemByID(action.id) end
         if action.friendly then GameTooltip:AddLine("Right-click: cast on yourself", 0.5, 0.8, 1) end
         if action.countItem then GameTooltip:AddLine("Count: carried items or required reagent", 0.5, 0.8, 1, true) end
         GameTooltip:Show()
     end)
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:HookScript("PostClick", function(_, _, down)
+        if not down then self:RememberSelection(button.categoryID, button.action) end
+    end)
     return button
 end
 
@@ -192,6 +195,7 @@ function addon:BindAction(button, action)
     button:SetAttribute("item", action.kind == "item" and ("item:" .. action.id) or nil)
     button:SetAttribute("unit", action.self and "player" or nil)
     button:SetAttribute("unit2", action.friendly and "player" or nil)
+    self:ConfigureRecipientBuff(button, action)
     button.icon:SetTexture(action.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
     button.badge:SetText(self.db.showBadges and (action.kind == "item" and "Use" or (action.conjure and "+" or "")) or "")
     button:Show()
@@ -210,6 +214,8 @@ function addon:RefreshCenterAction(actions)
     else action = gem end
     self.sphere.displayMode = selected
     self.sphere.action, self.sphere.shiftAction = action, evocation
+    self.sphere:SetAttribute("*type3", "")
+    self.sphere:SetAttribute("*item3", nil)
     -- Explicit no-op prevents a missing Shift action from falling back to drink
     -- or a gem. Only Blizzard's secure template performs spell/item actions.
     for prefix, binding in pairs({[""]={action}, ["shift-"]={evocation}}) do
@@ -311,6 +317,9 @@ function addon:CreateCircle()
     bar:SetStatusBarColor(0.2, 0.65, 1)
     bar:SetMinMaxValues(0, 1)
     self.manaBar = bar
+    local color = self.themes[self.db.colorTheme] or self.themes.arcane
+    bar:SetStatusBarColor(unpack(color))
+    self.manaText:SetTextColor(unpack(color))
 
     for _, category in ipairs(self.categories) do
         local menu = CreateFrame("Frame", nil, frame, "SecureHandlerBaseTemplate")
@@ -323,19 +332,39 @@ function addon:CreateCircle()
         menu:Hide()
         self.menus[category.id] = menu
 
-        local toggle = CreateFrame("Button", nil, frame, "SecureHandlerClickTemplate,SecureHandlerEnterLeaveTemplate")
+        local toggle = CreateFrame("Button", nil, frame, "SecureActionButtonTemplate,SecureHandlerEnterLeaveTemplate")
         toggle.categoryID = category.id
         toggle:SetSize(40, 40)
-        roundedIcon(toggle, category.icon, 40)
+        toggle.icon = roundedIcon(toggle, category.icon, 40)
+        if category.direct then
+            toggle.directCooldown = CreateFrame("Cooldown", nil, toggle, "CooldownFrameTemplate")
+            toggle.directCooldown:SetAllPoints(toggle.icon); toggle.directCooldown:EnableMouse(false)
+        end
         local glow = toggle:CreateTexture(nil, "HIGHLIGHT")
         glow:SetAllPoints()
         glow:SetTexture("Interface\\AddOns\\Arcanum\\Media\\Ring")
         glow:SetBlendMode("ADD")
-        toggle:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        toggle:RegisterForClicks("AnyDown", "AnyUp")
+        toggle:SetAttribute("useOnKeyDown", false)
+        toggle:SetAttribute("type", "")
+        toggle:SetAttribute("direct", category.direct)
+        toggle:SetAttribute("menu-count", #self.categories)
+        toggle.timer = makeText(toggle, "GameFontHighlightSmall", "BOTTOM", 0, -12)
         toggle:SetFrameRef("menu", menu)
         -- Preserve the template's secure hover scripts. Category icons open
         -- actual action buttons; only the individual actions show tooltips.
-        toggle:HookScript("OnEnter", function() GameTooltip:Hide() end)
+        toggle:HookScript("OnEnter", function()
+            GameTooltip:Hide()
+            if category.direct and self.db.showTooltips and toggle.directAction then
+                GameTooltip:SetOwner(toggle, "ANCHOR_RIGHT")
+                GameTooltip:SetItemByID(toggle.directAction.id)
+                GameTooltip:AddLine("Left-click: use Hearthstone", 0.5, 0.8, 1, true)
+                local home = GetBindLocation and self:Readable(GetBindLocation())
+                if type(home) == "string" then GameTooltip:AddLine("Home: " .. home, 1, 1, 1, true) end
+                GameTooltip:Show()
+            end
+        end)
+        if category.direct then toggle:HookScript("OnLeave", function() GameTooltip:Hide() end) end
         self.toggles[category.id] = toggle
         local reminder = toggle:CreateTexture(nil, "OVERLAY")
         reminder:SetAllPoints()
@@ -348,12 +377,15 @@ function addon:CreateCircle()
             toggle:SetFrameRef("menu" .. index, self.menus[category.id])
         end
         toggle:SetAttribute("_onclick", [[
+            local button, down = ...
+            if self:GetAttribute("direct") then return end
+            if down or IsShiftKeyDown() then return end
             local menu = self:GetFrameRef("menu")
             if menu:GetAttribute("pinned") then
                 menu:SetAttribute("pinned", nil)
                 menu:Hide()
             else
-                for index = 1, 8 do
+                for index = 1, self:GetAttribute("menu-count") do
                     local other = self:GetFrameRef("menu" .. index)
                     other:SetAttribute("pinned", nil)
                     other:Hide()
@@ -363,10 +395,12 @@ function addon:CreateCircle()
                 menu:UnregisterAutoHide()
             end
         ]])
+        SecureHandlerWrapScript(toggle, "OnClick", toggle, [[self:RunAttribute("_onclick", button, down)]])
         toggle:SetAttribute("_onenter", [[
+            if self:GetAttribute("direct") then return end
             if not self:GetAttribute("hover-enabled") then return end
             local menu = self:GetFrameRef("menu")
-            for index = 1, 8 do
+            for index = 1, self:GetAttribute("menu-count") do
                 local other = self:GetFrameRef("menu" .. index)
                 if other ~= menu then
                     other:SetAttribute("pinned", nil)

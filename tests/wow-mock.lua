@@ -8,7 +8,8 @@ for _, name in ipairs({"SetClampedToScreen", "SetMovable", "RegisterForDrag", "S
     "EnableMouse", "SetHideCountdownNumbers", "SetColorTexture", "SetOwner", "SetSpellByID",
     "SetItemByID", "AddLine", "SetTextColor", "SetStatusBarTexture", "SetStatusBarColor",
     "SetFrameStrata", "SetBlendMode", "RegisterEvent", "UnregisterEvent", "SetBackdrop",
-    "SetAutoFocus", "SetMaxLetters", "ClearFocus", "SetAlpha", "SetVertexColor", "SetScrollChild"}) do
+    "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetNormalTexture", "SetPushedTexture", "SetHighlightTexture",
+    "ClearFocus", "SetAlpha", "SetVertexColor", "SetScrollChild"}) do
     methods[name] = function() end
 end
 local function object(parent, template)
@@ -16,6 +17,9 @@ local function object(parent, template)
 end
 UIParent = object()
 function InCombatLockdown() return combat end
+shiftHeld = false
+function IsShiftKeyDown() return shiftHeld end
+function SecureHandlerWrapScript(frame, script, header, snippet) frame.secureWrappers = frame.secureWrappers or {}; frame.secureWrappers[script] = snippet end
 function issecretvalue(value) return type(value) == "table" and rawget(value, "secret") == true end
 function secretNumber()
     return setmetatable({secret = true}, {
@@ -43,6 +47,11 @@ function CreateFrame(kind, name, parent, template)
 end
 function methods:SetAttribute(key, value) restricted(self); self.attributes[key] = value end
 function methods:GetAttribute(key) return self.attributes[key] end
+function methods:RunAttribute(key, ...)
+    local fn = assert(loadstring(self:GetAttribute(key)))
+    setfenv(fn, setmetatable({self=self}, {__index=_G}))
+    return fn(...)
+end
 function methods:SetFrameRef(key, value) self.refs[key] = value end
 function methods:GetFrameRef(key) return self.refs[key] end
 function methods:SetScript(key, value) self.scripts[key] = value end
