@@ -5,7 +5,7 @@
 A circular mage toolbox for **World of Warcraft: Forever**. Keep your spells,
 mana recovery, conjured supplies, and reminders together in one configurable orb.
 
-**Version 0.8.1 — Local testing.** Built for Forever 1.60.1 (interface 16001).
+**Version 0.8.1 — Beta.** Built for Forever 1.60.1 (interface 16001).
 Compatibility with Retail and other Classic clients has not been verified.
 
 ## Features
@@ -31,20 +31,9 @@ Compatibility with Retail and other Classic clients has not been verified.
 - **Optional keybindings.** Bind preparation, mana recovery, eating and drinking,
   utility spells, and self buffs.
 
-## Installation
+## Getting started
 
-1. Close World of Warcraft.
-2. Extract the addon so that `Arcanum/Arcanum.toc` is directly inside your
-   Forever client's `Interface/AddOns` directory. Avoid an extra nested folder.
-3. Start the game, enable **Arcanum Forever** in the AddOns list, and log into
-   a mage character.
-4. Type `/arc` to open settings.
-
-The addon folder is named **Arcanum**, even though the public project name is
-**Arcanum Forever**. It activates only on mage characters.
-
-For updates to existing files, `/reload` is usually enough. Restart the client
-if an update adds files or keybinding entries.
+Log into a mage character and type `/arc` to open settings.
 
 ## Using the circle
 
@@ -163,18 +152,6 @@ it, and the full error message. For preparation or trade issues, enable the
 optional troubleshooting log under `/arc` → **Support**, reproduce the issue,
 and include the relevant entries. The log keeps the latest 200 entries and can
 be cleared or disabled at any time.
-
-## Beta limitations
-
-- This release targets **WoW: Forever 1.60.1**. New beta client updates may require
-  addon changes.
-- Spell menu and secure action changes wait until combat ends. Existing spell
-  actions remain available; layout and visibility commands require leaving combat.
-- Some game information may be restricted. Missing-buff alerts are suppressed
-  when buff status cannot be determined. Ignite is hidden when its aura cannot
-  be identified; a known Ignite with no available count shows `?`.
-- Ignite tracks the current target, not every enemy in the encounter.
-- Preparation and trading require your clicks; trades require your confirmation.
 
 ## Credits and license
 

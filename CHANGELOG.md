@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.1 — Local testing — October 3, 2026
+## 0.8.1 — October 4, 2026
 
 - Close vending for the current trade, or collapse it to a reopening tab.
 - Drag the vending title to save its position; reset it under Vending settings.
