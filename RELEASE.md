@@ -1,11 +1,11 @@
-# Release 0.9.4
+# Release 0.9.6
 
 - Project: Arcanum Forever.
 - Addon folder: Arcanum.
 - Target: WoW: Forever 1.60.1, interface 16001.
 - License: MIT, copyright 2026 Alfonso.
 - Release classification: Beta.
-- Project avatar: `branding/arcanum-forever-logo.png` (1254 Ã— 1254 PNG).
+- Project avatar: `branding/arcanum-forever-logo.png` (1254 × 1254 PNG).
 
 ## Validation
 
@@ -19,8 +19,8 @@ license inclusion, and ZIP integrity.
 
 ## Deliverables
 
-- Player install: `dist/Arcanum-Forever-0.9.4.zip`.
-- Checksum: `dist/Arcanum-Forever-0.9.4.zip.sha256`.
+- Player install: `dist/Arcanum-Forever-0.9.6.zip`.
+- Checksum: `dist/Arcanum-Forever-0.9.6.zip.sha256`.
 - Developer repository: runtime source, tests, build tools, player/developer
   documentation, branding, and MIT license.
 

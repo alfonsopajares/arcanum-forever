@@ -5,7 +5,7 @@
 A circular mage toolbox for **World of Warcraft: Forever**. Keep your spells,
 mana recovery, conjured supplies, and reminders together in one configurable orb.
 
-**Version 0.9.4 — Beta.** Built for Forever 1.60.1 (interface 16001).
+**Version 0.9.6 — Beta.** Built for Forever 1.60.1 (interface 16001).
 Compatibility with Retail and other Classic clients has not been verified.
 
 ## Features

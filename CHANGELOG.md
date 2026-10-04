@@ -1,12 +1,27 @@
 # Changelog
 
-## 0.9.4 â€” October 4, 2026 (local beta)
+## 0.9.6 - October 4, 2026 (public beta)
+
+- Always show Shift + left-click: Evocation in the center orb tooltip, with a
+  not-learned label when unavailable. The shortcut still only casts learned Evocation.
+
+## 0.9.5 — October 4, 2026 (local beta)
+
+- Add dedicated blue/purple tooltips with opaque backgrounds and aligned controls.
+- Show colored food, water, and mana gem counts on orb and preparation tooltips.
+- Keep native spell/item details, with compact action and reagent rows.
+- Match Hearthstone and minimap tooltips, and respect the tooltip visibility setting.
+- Show the drag hint only when the circle is unlocked and outside combat.
+- Keep styling on a dedicated Arcanum tooltip without changing Blizzard tooltips.
+
+
+## 0.9.4 — October 4, 2026 (public beta)
 
 - Move Hearthstone from orb middle-click to its own outer circle button with no
   flyout. Show its cooldown and home location tooltip; hide it when not carried.
 - Include Hearthstone in circle visibility and ordering settings.
 
-## 0.9.3 â€” October 4, 2026 (local beta)
+## 0.9.3 — October 4, 2026 (local beta)
 
 - Add optional recipient-level ranks for Intellect, Dampen Magic, and Amplify
   Magic, including last-spell shortcuts. Use a conservative lowest learned rank
@@ -14,18 +29,18 @@
 - Add a middle-click Hearthstone shortcut on the orb, configurable in Buffs / Travel.
 - Add an optional draggable minimap settings button with a saved position.
 
-## 0.9.2 â€” October 4, 2026 (local beta)
+## 0.9.2 — October 4, 2026 (local beta)
 
 - Cycle funny-message previews through all five lines using a separate preview
   cursor. Preview clicks never consume or reshuffle the in-game message rotation.
 
-## 0.9.1 â€” October 4, 2026 (local beta)
+## 0.9.1 — October 4, 2026 (local beta)
 
 - Use up/down arrows for category ordering and place Support last in options.
 - Expand funny / roleplay to five messages per event and timing, with shuffled
   cycles that use every message before repeating. Previews leave cycles unchanged.
 
-## 0.9.0 â€” October 4, 2026 (local beta)
+## 0.9.0 — October 4, 2026 (local beta)
 
 - Redesigned options with a Blizzard-style frame, page headings, and icon navigation.
 - Added configurable mage messages, original funny speeches, editable templates,
@@ -35,14 +50,14 @@
 - Added opt-in reagent restocking with learned-spell checks, stock targets,
   per-visit spending limits, gold reserves, and bag confirmation. No bag sorting.
 
-## 0.8.1 â€” October 4, 2026
+## 0.8.1 — October 4, 2026
 
 - Close vending for the current trade, or collapse it to a reopening tab.
 - Drag the vending title to save its position; reset it under Vending settings.
 - Optional automatic collapse while enchanting, with manual reopening and restoration.
 - Preserve manual visibility and position through trade and bag updates.
 
-## 0.8.0 â€” October 3, 2026
+## 0.8.0 — October 3, 2026
 
 Initial public beta of **Arcanum Forever** for WoW: Forever 1.60.1.
 

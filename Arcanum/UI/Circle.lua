@@ -174,14 +174,9 @@ function addon:CreateActionButton(menu, index)
         if not self.db.showTooltips then return end
         local action = button.action
         if not action then return end
-        GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
-        if action.kind == "spell" then GameTooltip:SetSpellByID(self:RecipientBuffSpell(action, InCombatLockdown()) or action.id)
-        else GameTooltip:SetItemByID(action.id) end
-        if action.friendly then GameTooltip:AddLine("Right-click: cast on yourself", 0.5, 0.8, 1) end
-        if action.countItem then GameTooltip:AddLine("Count: carried items or required reagent", 0.5, 0.8, 1, true) end
-        GameTooltip:Show()
+        self:ActionTooltip(button, action)
     end)
-    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    button:SetScript("OnLeave", function() self:HideTooltip() end)
     button:HookScript("PostClick", function(_, _, down)
         if not down then self:RememberSelection(button.categoryID, button.action) end
     end)
@@ -263,17 +258,16 @@ function addon:CreateCircle()
     end)
     sphere:SetScript("OnEnter", function()
         if not self.db.showTooltips then return end
-        GameTooltip:SetOwner(sphere, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Arcanum")
+        self:BeginTooltip(sphere, "Arcanum Forever")
         local action = sphere.action
-        GameTooltip:AddLine("Left-click: " .. (action and action.name or sphere.unavailable), 1, 1, 1, true)
-        local shift = sphere.shiftAction
-        GameTooltip:AddLine("Shift + left-click: " .. (shift and shift.name or "Evocation (not learned yet)"), 0.5, 0.8, 1, true)
-        GameTooltip:AddLine("Right-click: options. Drag to move when unlocked.", 1, 1, 1, true)
-        for _, message in ipairs(self.reminderMessages or {}) do GameTooltip:AddLine(message, 1, 0.65, 0.2, true) end
-        GameTooltip:Show()
+        self:TooltipControl("Left-click", action and action.name or sphere.unavailable or "Unavailable")
+        self:TooltipControl("Shift + left-click", sphere.shiftAction and "Evocation" or "Evocation (not learned yet)")
+        self:TooltipControl("Right-click", "Options")
+        if not self.db.locked and not InCombatLockdown() then self:TooltipControl("Drag", "Move circle") end
+        self:TooltipSupplies()
+        self:FinishTooltip()
     end)
-    sphere:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    sphere:SetScript("OnLeave", function() self:HideTooltip() end)
     local orb = sphere:CreateTexture(nil, "BACKGROUND")
     orb:SetAllPoints()
     orb:SetTexture("Interface\\AddOns\\Arcanum\\Media\\Orb")
@@ -354,17 +348,18 @@ function addon:CreateCircle()
         -- Preserve the template's secure hover scripts. Category icons open
         -- actual action buttons; only the individual actions show tooltips.
         toggle:HookScript("OnEnter", function()
-            GameTooltip:Hide()
+            self:HideTooltip()
             if category.direct and self.db.showTooltips and toggle.directAction then
-                GameTooltip:SetOwner(toggle, "ANCHOR_RIGHT")
-                GameTooltip:SetItemByID(toggle.directAction.id)
-                GameTooltip:AddLine("Left-click: use Hearthstone", 0.5, 0.8, 1, true)
+                local tip = self:BeginTooltip(toggle, "Hearthstone")
+                tip:SetItemByID(toggle.directAction.id)
+                tip:AddLine(" ")
+                self:TooltipControl("Left-click", "Return home")
                 local home = GetBindLocation and self:Readable(GetBindLocation())
-                if type(home) == "string" then GameTooltip:AddLine("Home: " .. home, 1, 1, 1, true) end
-                GameTooltip:Show()
+                if type(home) == "string" then self:TooltipControl("Home", home) end
+                self:FinishTooltip()
             end
         end)
-        if category.direct then toggle:HookScript("OnLeave", function() GameTooltip:Hide() end) end
+        if category.direct then toggle:HookScript("OnLeave", function() self:HideTooltip() end) end
         self.toggles[category.id] = toggle
         local reminder = toggle:CreateTexture(nil, "OVERLAY")
         reminder:SetAllPoints()
