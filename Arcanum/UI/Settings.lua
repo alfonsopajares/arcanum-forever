@@ -54,12 +54,12 @@ function addon:CreateSettings()
         panel:Hide()
         window.pages[name] = panel
         local tab = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-        tab:SetSize(148, 38)
-        tab:SetPoint("TOPRIGHT", -18, -96 - (index - 1) * 46)
+        tab:SetSize(148, 34)
+        tab:SetPoint("TOPRIGHT", -18, -96 - (index - 1) * 41)
         tab:SetText(label or name)
         local icons = {Circle="Spell_Arcane_Arcane04", Flyouts="INV_Misc_Book_09", Display="INV_Misc_Gem_Sapphire_02",
             Vending="INV_Drink_18", Preparation="INV_Misc_Food_10", Reminders="Spell_Holy_MagicalSentry",
-            Distribution="INV_Misc_Coin_01", Support="INV_Misc_QuestionMark", Messages="INV_Misc_Note_01", Restocking="INV_Misc_Rune_01", Buffs="Spell_Holy_MagicalSentry"}
+            Distribution="INV_Misc_Coin_01", Support="INV_Misc_QuestionMark", Messages="INV_Misc_Note_01", Restocking="INV_Misc_Rune_01", Buffs="Spell_Holy_MagicalSentry", Procs="Spell_Shadow_ManaBurn"}
         local icon = tab:CreateTexture(nil, "ARTWORK")
         icon:SetSize(20, 20); icon:SetPoint("LEFT", 4, 0); icon:SetTexture("Interface\\Icons\\" .. icons[name])
         window.tabs[name] = tab
@@ -204,8 +204,8 @@ function addon:CreateSettings()
     check(display, "Show conjure (+) and Use badges", 0, -150, getter("showBadges"), setter("showBadges"))
     check(display, "Show orb cooldown ring", 0, -184, getter("centerCooldown"), setter("centerCooldown"))
     text(display, "Mana Gem shows total gems in your bags; Eat + Drink shows food and water counts.\nEvocation shows your current mana. Left-click uses the selected action.\nShift + left-click casts learned Evocation. Right-click opens options.", 0, -230, 530)
-    check(display, "Show prominent Ignite stacks on your enemy target", 0, -300, getter("showIgnite"), setter("showIgnite"))
-    text(display, "Ignite appears below screen center, separate from the circle.\nTracks the target's Ignite, including another mage's application.", 0, -344, 530)
+    check(display, "Show your Ignite in the proc alert row", 0, -300, getter("showIgnite"), setter("showIgnite"))
+    text(display, "Only your confirmed Ignite is shown. Configure alerts and sounds under Procs.\nProtected aura data is never guessed; unavailable alerts stay hidden.", 0, -344, 530)
     check(display, "Show Intellect and Armor time below their buttons", 0, -390, getter("showBuffTimers"), setter("showBuffTimers"))
     check(display, "Show cooldown numbers on spell icons", 0, -424, getter("showCooldownNumbers"), setter("showCooldownNumbers"))
     choice(display, "Mana display color", -466, {{"arcane","Arcane blue"},{"violet","Violet"},{"frost","Frost"},{"gold","Gold"}}, getter("colorTheme"), setter("colorTheme"))
@@ -294,7 +294,7 @@ function addon:CreateSettings()
     window.distributionContent = content
     window.distributionText = text(content, "", 0, 0, 500)
     text(distribution, "History survives reloads until it expires. Cancelled trades are never counted.", 0, -474, 530)
-    local support = page("Support", 11)
+    local support = page("Support", 12)
     check(support, "Enable troubleshooting log (last 200 entries)", 0, 0, getter("debugLogging"), setter("debugLogging"))
     choice(support, "Copy settings from another mage", -40, function() return self:CharacterOptions() end,
         function() return self.copySource or "" end, function(value) self.copySource = value end)
@@ -376,6 +376,46 @@ function addon:CreateSettings()
     number(restock, "Gold to keep", 0, -328, 0, 10000, true,
         function() return self.db.restock.keepGold end, function(value) self.db.restock.keepGold = value end)
     text(restock, "Restocking starts when you open a vendor. Purchases stop at your targets,\nspending limit, gold reserve, available stock, or bag capacity.\nOnly normal gold purchases are used; special currency offers are skipped.\nDisabled by default. Enable above when you want automatic purchases.", 0, -396, 530)
+    local procs = page("Procs", 11)
+    check(procs, "Enable proc alerts (independent of the circle)", 0, 0,
+        function() return self.db.procs.enabled end, function(v) self.db.procs.enabled=v end)
+    check(procs, "Enable proc sounds", 0, -30,
+        function() return self.db.procs.sound end, function(v) self.db.procs.sound=v end)
+    check(procs, "Lock alert position", 0, -60,
+        function() return self.db.procs.locked end, function(v) self.db.procs.locked=v end)
+    number(procs, "Alert size (60–150%)", 0, -98, 60, 150, false,
+        function() return self.db.procs.scale end, function(v) self.db.procs.scale=v end)
+    local function procOptions()
+        local list={}; for _, def in ipairs(self.procTypes) do list[#list+1]={def.key,def.label} end; return list
+    end
+    window.procSelection = "clearcasting"
+    local function procOption() return self:ProcOption(window.procSelection) end
+    choice(procs, "Effect", -146, procOptions,
+        function() return window.procSelection end,
+        function(v) window.procSelection=v; for _, refresh in ipairs(window.refreshers) do refresh() end end)
+    check(procs, "Show this effect", 0, -184,
+        function() return procOption().enabled end, function(v) procOption().enabled=v end)
+    check(procs, "Play sound for this effect", 0, -214,
+        function() return procOption().sound end, function(v) procOption().sound=v end)
+    choice(procs, "Sound", -252, self.procSounds,
+        function() return procOption().tone end, function(v) procOption().tone=v end)
+    local function procButton(caption, x, y, action)
+        local b=CreateFrame("Button",nil,procs,"UIPanelButtonTemplate")
+        b:SetSize(164,26); b:SetPoint("TOPLEFT",x,y); b:SetText(caption); b:SetScript("OnClick",action)
+        return b
+    end
+    window.procTests = {}
+    window.procTests.gain=procButton("Gain / add stack",0,-300,function() self:TestProc(window.procSelection,"gain") end)
+    window.procTests.consume=procButton("Consume / use charge",178,-300,function() self:TestProc(window.procSelection,"consume") end)
+    window.procTests.expire=procButton("Expire selected",356,-300,function() self:TestProc(window.procSelection,"expire") end)
+    window.procTests.all=procButton("Test all alerts",0,-336,function() self:TestProc("all") end)
+    window.procTests.stop=procButton("Stop test",178,-336,function() self:StopProcTest() end)
+    window.procTests.sound=procButton("Preview sound",356,-336,function() self:PlayProcSound(window.procSelection,true) end)
+    text(procs,"Test mode works without learned talents and ends after 30 seconds or entering combat.\nTest icons include disabled effects; test sounds respect your sound switches.\nHeating Up sounds at 3 stacks; Arcane Blast at 4; Winter's Chill at 5.\nMaximum stacks have a bright gold halo and a MAX STACKS callout.\nUnreadable combat data may prevent detection or timers. Test mode checks the UI only.",0,-386,530)
+    procButton("Reset alert position",0,-478,function()
+        for _, key in ipairs({"point","relativePoint","x","y","scale"}) do self.db.procs[key]=self.defaults.procs[key] end
+        self:ApplyProcSettings(); self:OpenSettings("Procs")
+    end)
     window:Hide()
 end
 

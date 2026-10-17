@@ -5,7 +5,7 @@
 A circular mage toolbox for **World of Warcraft: Forever**. Keep your spells,
 mana recovery, conjured supplies, and reminders together in one configurable orb.
 
-**Version 0.9.6 — Beta.** Built for Forever 1.60.1 (interface 16001).
+**Version 0.9.9 — Beta.** Built for Forever 1.60.1 (interface 16001).
 Compatibility with Retail and other Classic clients has not been verified.
 
 ## Features
@@ -21,8 +21,11 @@ Compatibility with Retail and other Classic clients has not been verified.
 - **Buff and supply reminders.** A prominent Missing Buffs alert calls out
   missing armor and Arcane Intellect. Optional highlights warn about low food,
   water, reagents, and missing learned mana gems.
-- **Ignite tracking.** A fire icon and large stack counter below screen center
-  track Ignite on your current enemy target, including other mages' applications.
+- **Proc alerts.** Round icons, action callouts, optional sounds, and bright gold
+  highlights make important mage effects easier to notice. Test them before
+  learning the talents with `/arc procs test`.
+- **Personal Ignite tracking.** See your own Ignite on the current enemy target
+  alongside your proc alerts, with a remaining timer when the client exposes it.
 - **Food and water trading.** A Blizzard-style helper beside the trade window
   offers class presets, full-stack buttons, personal reserves, and shortage
   feedback. You review the offer and confirm the trade yourself.
@@ -162,9 +165,20 @@ disable food, water, mana gem, armor, Intellect, and reagent reminders separatel
 Choose supply thresholds, combat suppression, and group-only display. Reminders
 are silent and do not post messages in chat.
 
-Ignite has a separate switch under `/arc` → **Display**. Its counter remains
-available when the circle is hidden and disappears when Ignite ends, you lose
-your target, or your target is friendly or dead.
+Open `/arc procs` for Clearcasting, Missile Barrage, Fingers of Frost, Heating Up,
+Arcane Blast, Winter's Chill, and personal Ignite alerts. Each effect has its own
+visibility and sound controls. Unlock the row to drag it, or change its scale.
+Maximum stacks have a bright gold halo and a MAX STACKS label.
+
+Use the test panel to gain effects, add stacks, consume charges, expire effects,
+and preview sounds without needing the talents. `/arc procs test` previews them
+together; `/arc procs stop` ends the test. Tests stop after 30 seconds or on
+entering combat. Tests check presentation, not live spell detection.
+
+Ignite also keeps its switch under `/arc` → **Display**. Alerts remain available
+when the circle is hidden. Target effects require confirmed player ownership and
+disappear when your target is friendly, dead, or missing. Restricted combat aura
+data may prevent live detection, stack highlights, or timers; it is never guessed.
 
 ### Vending and delivery history
 

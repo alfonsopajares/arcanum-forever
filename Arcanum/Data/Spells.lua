@@ -46,4 +46,5 @@ addon.spells = {
     { category = "utility", ranks = {2139} },
     { category = "utility", ranks = {122,865,6131,10230}, self = true },
     { category = "utility", ranks = {130}, friendly = true, reagent = 17056 },
+    { category = "utility", ranks = {1296017} }, -- Comprehend Scroll (Forever)
 }

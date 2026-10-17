@@ -21,6 +21,19 @@ addon.defaults = {
     showBadges = true,
     centerCooldown = true,
     showIgnite = true,
+    procs = {
+        enabled=true, sound=true, locked=true, scale=100,
+        point="TOP", relativePoint="CENTER", x=0, y=-150,
+        effects={
+            clearcasting={enabled=true,sound=true,tone="chime"},
+            missiles={enabled=true,sound=true,tone="pulse"},
+            fingers={enabled=true,sound=true,tone="frost"},
+            heating={enabled=true,sound=true,tone="fire"},
+            arcane={enabled=true,sound=false,tone="pulse"},
+            winter={enabled=true,sound=false,tone="frost"},
+            ignite={enabled=true,sound=false,tone="fire"},
+        },
+    },
     showBuffTimers = true,
     showCooldownNumbers = true,
     colorTheme = "arcane",
@@ -115,6 +128,7 @@ function addon:InitializeSettings()
 end
 
 function addon:NormalizeSettings()
+    self.db.procs.effects.wake = nil
     if self.db.hearthstoneShortcut == false and self.db.categoryEnabled.hearthstone == nil then self.db.categoryEnabled.hearthstone = false end
     self.db.hearthstoneShortcut = nil
     if self.db.centerAction == "drink" or self.db.centerAction == "water" then self.db.centerAction = "eatdrink" end
@@ -180,6 +194,7 @@ function addon:ApplySettings()
     self.manaBar:SetStatusBarColor(unpack(color))
     self.manaText:SetTextColor(unpack(color))
     self:UpdateMinimapButton()
+    self:ApplyProcSettings()
     self:RefreshActions()
     self:UpdateMana()
     if self.trade and self.trade.open then self:UpdateTradeUI() end

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.9.9 — October 17, 2026 (public beta)
+
+- Remove Wake of Fire tracking, settings, and previews following its removal in
+  the current Forever beta. Clear its obsolete saved effect settings.
+- Give Ignite an explicit fire icon instead of relying on its hidden aura's icon.
+- Make maximum stacks stand out with a thicker, bright gold halo, gold stack
+  numbers, and a MAX STACKS callout. The halo disappears when a charge is spent
+  or stacks become unreadable.
+
+## 0.9.8-local — October 17, 2026 (local prototype)
+
+- Add a movable, scalable row of round spell icons with action callouts, charges,
+  and readable remaining durations, independent of the main circle.
+- Track Clearcasting, Missile Barrage, Fingers of Frost, Heating Up, Arcane Blast,
+  Winter's Chill, and personal Ignite. Recognize Wake of Fire if the client still
+  supplies its older beta buff; never infer it from kills.
+- Add individual visibility, sound switches, four original sound choices, and
+  sound previews under Procs. Stack alerts sound at their useful thresholds;
+  Ignite, Winter's Chill, and Arcane Blast are silent by default.
+- Add `/arc procs` and a test panel for simulated gains, stacks, consumption,
+  expiration, and simultaneous alerts without needing talents. `/arc procs test`
+  previews every effect; `/arc procs stop` ends it. Tests end automatically after
+  30 seconds or on entering combat and never alter saved effect switches.
+- Replace the old Ignite stack panel with personal Ignite in the shared row;
+  another mage's Ignite is no longer presented as yours. Protected aura values
+  are never used for arithmetic or sound decisions, and unknown ownership hides
+  target alerts. Keep Support as the final options button.
+
+## 0.9.7 — October 6, 2026 (public beta)
+
+- Add Forever's Comprehend Scroll to the Utility flyout, visible only when learned.
+
 ## 0.9.6 - October 4, 2026 (public beta)
 
 - Always show Shift + left-click: Evocation in the center orb tooltip, with a

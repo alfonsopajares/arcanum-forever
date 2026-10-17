@@ -3,7 +3,7 @@
 ## Notes: A circular preparation, travel, and utility toolbox for mages.
 ## Author: Alfonso
 ## X-License: MIT
-## Version: 0.9.6
+## Version: 0.9.9
 ## SavedVariables: ArcanumDB
 
 Config.lua
@@ -19,4 +19,5 @@ Convenience.lua
 UI\Tooltip.lua
 UI\Settings.lua
 UI\Circle.lua
+Procs.lua
 Core.lua

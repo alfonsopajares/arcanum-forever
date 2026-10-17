@@ -14,7 +14,8 @@ def build():
     assert "## Interface: 16001" in toc, "Unexpected target interface"
     assert "## X-License: MIT" in toc, "Missing license metadata"
     names = ["Arcanum.toc", "Bindings.xml", "LICENSE",
-             "Media/Orb.tga", "Media/CircleMask.tga", "Media/Ring.tga"]
+             "Media/Orb.tga", "Media/CircleMask.tga", "Media/Ring.tga", "Media/ProcReady.tga"]
+    names += ["Media/ProcChime.wav", "Media/ProcPulse.wav", "Media/ProcFrost.wav", "Media/ProcFire.wav"]
     names += [line.strip().replace("\\", "/") for line in toc.splitlines()
               if line.strip() and not line.startswith("#")]
     assert len(names) == len(set(names)), "Duplicate manifest entry"

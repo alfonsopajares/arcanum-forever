@@ -1,4 +1,4 @@
-# Release 0.9.6
+# Release 0.9.9
 
 - Project: Arcanum Forever.
 - Addon folder: Arcanum.
@@ -13,14 +13,14 @@ On October 3, 2026, the project owner confirmed in-game testing after every
 development release through 0.8.0. This is owner-reported validation; automated
 checks do not substitute for live gameplay.
 
-The automated suite passes 443 behavioral checks and validates 10 native
+The automated suite passes 482 behavioral checks and validates 10 native
 keybindings. Package validation checks paths, exact file contents, TOC load files,
 license inclusion, and ZIP integrity.
 
 ## Deliverables
 
-- Player install: `dist/Arcanum-Forever-0.9.6.zip`.
-- Checksum: `dist/Arcanum-Forever-0.9.6.zip.sha256`.
+- Player install: `dist/Arcanum-Forever-0.9.9.zip`.
+- Checksum: `dist/Arcanum-Forever-0.9.9.zip.sha256`.
 - Developer repository: runtime source, tests, build tools, player/developer
   documentation, branding, and MIT license.
 

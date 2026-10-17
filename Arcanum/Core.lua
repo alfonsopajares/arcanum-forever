@@ -6,8 +6,11 @@ end
 
 function addon:HandleCommand(command)
     command = (command or ""):match("^%s*(.-)%s*$"):lower()
+    if command == "procs" then self:OpenSettings("Procs"); return end
+    if command == "procs test" then self:TestProc("all"); return end
+    if command == "procs stop" then self:StopProcTest(); return end
     if command == "help" then
-        printMessage("/arc opens options. /arc toggle hides or shows the circle. /arc [lock | reset | refresh].")
+        printMessage("/arc opens options. /arc toggle hides or shows the circle. /arc procs opens proc alerts; /arc procs test previews them. /arc [lock | reset | refresh].")
         return
     end
     if command == "" or command == "settings" then self:OpenSettings(); return end
@@ -95,7 +98,7 @@ events:SetScript("OnEvent", function(_, event, unit, powerType, third, fourth)
     elseif event == "MERCHANT_SHOW" or event == "MERCHANT_UPDATE" or event == "MERCHANT_CLOSED" then
         addon:RestockEvent(event)
     elseif event == "PLAYER_TARGET_CHANGED" or ((event == "UNIT_AURA" or event == "UNIT_HEALTH" or event == "UNIT_FLAGS") and unit == "target") then
-        addon:UpdateIgniteDisplay()
+        addon:UpdateProcDisplay(event == "UNIT_AURA")
         if event == "PLAYER_TARGET_CHANGED" then addon:RefreshActions() end
     elseif event == "UNIT_LEVEL" and unit == "target" then
         addon:RefreshActions()
@@ -105,7 +108,8 @@ events:SetScript("OnEvent", function(_, event, unit, powerType, third, fourth)
         if event == "GROUP_ROSTER_UPDATE" then addon:RefreshActions() end
         addon:UpdateReminders()
         addon:UpdateBuffTimers()
-        if event == "PLAYER_REGEN_DISABLED" then addon:UpdateIgniteDisplay() end
+        if event == "PLAYER_REGEN_DISABLED" then addon:StopProcTest()
+        else addon:UpdateProcDisplay(event == "UNIT_AURA") end
     elseif event == "TRADE_SHOW" or event == "TRADE_CLOSED" or
         event == "TRADE_PLAYER_ITEM_CHANGED" or event == "TRADE_TARGET_ITEM_CHANGED" then
         addon:DistributionEvent(event, unit, powerType)
