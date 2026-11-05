@@ -3,7 +3,7 @@
 ## Notes: A circular preparation, travel, and utility toolbox for mages.
 ## Author: Alfonso
 ## X-License: MIT
-## Version: 0.9.9
+## Version: 1.0.0
 ## SavedVariables: ArcanumDB
 
 Config.lua

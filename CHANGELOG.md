@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0 — November 4, 2026 (stable release)
+
+- Promote Arcanum Forever to its first stable release for WoW: Forever 1.60.1.
+- Retain the existing orb, learned-spell flyouts, preparation tools, vending,
+  reminders, messages, proc alerts, and personal Ignite tracking.
+- Remove beta labeling from the current release and player documentation.
+- Preserve the Arcanum folder, character settings, and saved trade history.
+
 ## 0.9.9 — October 17, 2026 (public beta)
 
 - Remove Wake of Fire tracking, settings, and previews following its removal in
