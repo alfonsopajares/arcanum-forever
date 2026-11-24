@@ -5,10 +5,15 @@
 A circular mage toolbox for **World of Warcraft: Forever**. Keep your spells,
 mana recovery, conjured supplies, and reminders together in one configurable orb.
 
-**Version 1.0.0.** Built for Forever 1.60.1 (interface 16001).
+**Version 1.0.1.** Built for Forever 1.60.1 (interface 16001).
 Compatibility with Retail and other Classic clients has not been verified.
 
 ## Features
+
+- **Drive-by Intellect.** Hover a friendly player or unit frame and press your
+  binding to cast an appropriate learned rank without changing targets. Works
+  outside combat, with optional buff checks, mana-user filtering, and confirmation.
+  Bind it under Key Bindings → Arcanum Forever; configure it in Buffs / Travel.
 
 - **Learned spells only.** Menus show the highest learned rank of your spells.
   Empty categories stay hidden, and learned Polymorph variants remain distinct.
@@ -128,7 +133,8 @@ Cooldown numbers and mana display colors can also be changed there.
 
 ### Center action
 
-Choose an action under `/arc` → **Display**.
+The circle starts with Eat + Drink and offers to switch to Mana Gem once
+you learn to conjure one. Choose any action under `/arc` → **Display**.
 
 | Option | Shown in the circle | Left-click action |
 | --- | --- | --- |
@@ -142,10 +148,7 @@ action does nothing; Mana Gem never falls back to food or water.
 
 ### Prepare supplies
 
-Set food and water targets under `/arc` → **Prep**. Automatic mode chooses your
-Solo, Party, or Raid profile based on your group. You can select a profile
-manually or estimate targets from the current group's class presets and recent
-completed deliveries.
+Set your personal food and water targets under `/arc` → **Prep**.
 
 Each click performs **one conjuring cast outside combat**, in this order:
 
@@ -157,6 +160,13 @@ The button updates when supplies arrive in your bags. **Prepared!** means your
 learned mana gems and both stock targets are satisfied; further clicks do
 nothing. Preparation never casts automatically. You can hide its button in Prep
 settings and keep using its keybinding.
+
+While grouped, click **Group Supplies** below the circle or type `/arc supplies`.
+Choose who you’re serving, adjust requests, and click a nearby player’s name to
+open trade. The window tracks confirmed deliveries and shows how many requests
+your current stock can cover. **Conjure next** casts once per click and pauses
+when the needed supplies won’t fit in your bags. Mages running this version can
+coordinate assignments and deliveries through the Vending settings.
 
 ### Reminders and Ignite
 
@@ -194,7 +204,7 @@ current trade; it returns on the next trade. Closing stops pending supply moves.
 reopen the tab while enchanting; otherwise the panel returns when enchanting
 closes. A panel you collapsed manually stays collapsed.
 
-- **Fill preset** adds only the amount still needed to reach the trade's totals.
+- **Add requested supplies** adds only the amount still needed to reach the trade's totals.
   Repeated fills do not double a completed offer. It can combine matching bag
   stacks or split an exact final amount; splitting needs an empty general bag slot.
 - **+ Food / + Water** adds one existing full stack unchanged. It does not split
@@ -202,8 +212,9 @@ closes. A panel you collapsed manually stays collapsed.
 - **Clear supplies** removes only stacks added by Arcanum whose item and quantity
   still match. Manually added items are left alone.
 
-The panel shows offered amounts, targets, remaining quantities, eligible bag
-stock, and reserves. Unavailable controls explain why they are disabled.
+The panel shows offered amounts, requested quantities, and any shortages.
+Hover over the status for eligible bag stock and reserves. Unavailable controls
+explain why they are disabled.
 **Arcanum Forever never confirms a trade for you.** Inventory moves stop when
 combat starts or the trade closes.
 
@@ -240,9 +251,14 @@ optional troubleshooting log under `/arc` → **Support**, reproduce the issue,
 and include the relevant entries. The log keeps the latest 200 entries and can
 be cleared or disabled at any time.
 
+## Support Hollow Bell Studios
+
+Enjoying Arcanum Forever? You can [buy me a coffee](https://buymeacoffee.com/hollowbellstudios)
+to support future updates. Support is always optional—thank you for playing!
+
 ## Credits and license
 
-Created by **Alfonso**. Inspired by the circular toolbox ideas of Necrosis and
+Created by **Hollow Bell Studios**. Inspired by the circular toolbox ideas of Necrosis and
 the supply-management workflows of Conjurer. Arcanum Forever is independently
 developed and is not a continuation of the older Arcanum addon.
 

@@ -15,6 +15,10 @@ fire("PLAYER_ENTERING_WORLD")
 check(#messages == 1, "zone transitions do not repeat the load reminder")
 check(addon.frame ~= nil, "login initializes the UI")
 check(addon.manaBar.value == manaCurrent and addon.manaBar.maximum == manaMaximum, "secret mana passes directly to the bar")
+check(addon.centerLabel.text == "Eat + Drink" and addon.sphere:GetAttribute("macrotext1"):find("item:5350", 1, true),
+    "the default orb drinks carried conjured water")
+addon.db.centerAction = "gem"
+addon:ApplySettings()
 check(addon.manaText.values[1] == 0 and addon.centerLabel.text == "Mana Gem", "gem mode shows zero gems even when water is carried")
 check(addon.sphere:GetAttribute("type1") == "" and addon.sphere:GetAttribute("item1") == nil, "mana gem never falls back to water")
 check(addon.sphere:GetAttribute("shift-type1") == "" and addon.sphere:GetAttribute("shift-spell1") == nil, "unlearned Evocation is an explicit no-op without falling back to water")

@@ -1,12 +1,14 @@
 <Bindings>
-    <Binding name="CLICK ArcanumOrbKey:LeftButton" header="ARCANUM" runOnUp="true" />
-    <Binding name="CLICK ArcanumEvocationKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumEatDrinkKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumBlinkKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumCounterspellKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumRemoveCurseKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumPolymorphKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumPrepareKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumIntellectKey:LeftButton" runOnUp="true" />
-    <Binding name="CLICK ArcanumArmorKey:LeftButton" runOnUp="true" />
+    <Binding name="CLICK ArcanumOrbKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumToggleKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumEvocationKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumEatDrinkKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumBlinkKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumCounterspellKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumRemoveCurseKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumPolymorphKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumPrepareKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumIntellectKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumArmorKey:LeftButton" category="Arcanum" runOnUp="true" />
+    <Binding name="CLICK ArcanumDriveByKey:LeftButton" category="Arcanum" runOnUp="true" />
 </Bindings>

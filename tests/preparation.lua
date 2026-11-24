@@ -16,31 +16,32 @@ addon:MergeDefaults(addon.db.reminders, addon.defaults.reminders)
 addon.db.preparation.profile = "auto"
 check(addon:ActiveProfile() == "solo", "automatic preparation selects solo outside a group")
 party = 2
-check(addon:ActiveProfile() == "party", "automatic preparation selects party")
+check(addon:ActiveProfile() == "solo", "personal preparation stays personal in a party")
 raid = true
-check(addon:ActiveProfile() == "raid", "automatic preparation selects raid")
+check(addon:ActiveProfile() == "solo", "personal preparation stays personal in a raid")
 check(#addon:GroupMembers() == 2, "raid supply estimate excludes yourself")
 raid = false
 addon.db.vending.reserveFood, addon.db.vending.reserveWater = 10, 20
 local estimate = addon:EstimateSupplies()
 check(estimate.food == 50 and estimate.water == 60, "group estimate adds class presets and personal reserves")
 addon.distribution["party1-guid"] = {name="Priest", class="PRIEST", food=10, water=20, time=clockTime}
+addon:GroupSupplyDelivered({name="Priest",key="party1-guid",food=10,water=20})
 estimate = addon:EstimateSupplies()
 check(estimate.food == 40 and estimate.water == 40, "group estimate subtracts actual recent deliveries")
 addon:SetTargetsFromGroup()
-check(addon.db.preparation.profiles.party.food == 40 and addon.db.preparation.profiles.party.water == 40, "group estimate can become preparation targets")
+check(addon:ActiveProfile()=="solo" and addon.groupSuppliesWindow:IsShown(), "opening group supplies leaves personal preparation separate")
 check(addon.db.vending.presets.PRIEST.water == 40, "preparation targets do not change vending quantities")
 addon.db.preparation.trackTrades = false
 estimate = addon:EstimateSupplies()
-check(estimate.food == 50 and estimate.water == 60, "disabling distribution ignores past deliveries in estimates")
+check(estimate.food == 40 and estimate.water == 40, "group queue retains deliveries independently of optional history tracking")
 addon.db.preparation.trackTrades = true
 clockTime = clockTime + 1801
 addon:PruneDistribution()
 check(next(addon.distribution) == nil, "delivery history expires after configured time")
 
 local savedOffer = addon.TradeOffer
-addon.TradeOffer = function() return {food=20, water=40} end
-addon.trade = {open=true, key="party1-guid", name="Priest", class="PRIEST"}
+addon.TradeOffer = function() return {food=20, water=40},{1,2,3,4,5,6},{} end
+addon.trade = {open=true, owned={}, key="party1-guid", name="Priest", class="PRIEST"}
 addon:DistributionEvent("TRADE_ACCEPT_UPDATE", 1)
 check(next(addon.distribution) == nil, "accepting a trade does not record a delivery")
 addon:DistributionEvent("TRADE_CLOSED")
@@ -170,4 +171,17 @@ addon:OpenSettings("Distribution")
 check(addon.settings.pages.Distribution:IsShown() and addon.settings.distributionText.text, "distribution list is available in settings")
 addon:OpenSettings("Reminders")
 check(addon.settings.pages.Reminders:IsShown(), "reminder settings are available")
+local toggle=addon.keyButtons.Toggle
+addon.db.visible=true; addon.frame:Show()
+toggle.hooks.OnClick(toggle,"LeftButton",true)
+check(addon.db.visible and addon.frame:IsShown(),"toggle binding ignores key-down to avoid double toggles")
+toggle.hooks.OnClick(toggle,"LeftButton",false)
+check(not addon.db.visible and not addon.frame:IsShown(),"toggle binding hides the circle and saves visibility")
+check(toggle.parent==UIParent and toggle:IsShown(),"toggle binding remains available while circle is hidden")
+toggle.hooks.OnClick(toggle,"LeftButton",false)
+check(addon.db.visible and addon.frame:IsShown(),"toggle binding restores a hidden circle")
+combat=true
+toggle.hooks.OnClick(toggle,"LeftButton",false)
+check(addon.db.visible and addon.frame:IsShown(),"toggle binding preserves protected visibility in combat")
+combat=false
 io.write("Passed ", checks, " preparation/reminder/binding checks using the real addon Lua.\n")

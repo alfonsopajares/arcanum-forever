@@ -1,9 +1,9 @@
 ## Interface: 16001
 ## Title: Arcanum Forever
 ## Notes: A circular preparation, travel, and utility toolbox for mages.
-## Author: Alfonso
+## Author: Hollow Bell Studios
 ## X-License: MIT
-## Version: 1.0.0
+## Version: 1.1.3
 ## SavedVariables: ArcanumDB
 
 Config.lua
@@ -12,12 +12,18 @@ Data\Spells.lua
 Actions.lua
 Vending.lua
 Preparation.lua
+SupplyCoordination.lua
+GroupSupplies.lua
 Messages.lua
 Restocking.lua
 Customization.lua
 Convenience.lua
+DriveBy.lua
+CurseHelper.lua
+Scrolls.lua
 UI\Tooltip.lua
 UI\Settings.lua
 UI\Circle.lua
+NativeProcs.lua
 Procs.lua
 Core.lua

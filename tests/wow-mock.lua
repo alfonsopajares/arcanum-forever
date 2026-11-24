@@ -4,11 +4,11 @@ known, inventory, allFrames, spellBook = {}, {}, {}, {}
 local methods = {}
 local objectMT = { __index = methods }
 for _, name in ipairs({"SetClampedToScreen", "SetMovable", "RegisterForDrag", "StartMoving",
-    "SetAllPoints", "SetTexCoord", "AddMaskTexture", "SetWidth", "SetJustifyH",
+    "SetAllPoints", "SetTexCoord", "AddMaskTexture", "SetWidth", "SetJustifyH", "SetWordWrap",
     "EnableMouse", "SetHideCountdownNumbers", "SetColorTexture", "SetOwner", "SetSpellByID",
     "SetItemByID", "AddLine", "SetTextColor", "SetStatusBarTexture", "SetStatusBarColor",
-    "SetFrameStrata", "SetBlendMode", "RegisterEvent", "UnregisterEvent", "SetBackdrop",
-    "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetNormalTexture", "SetPushedTexture", "SetHighlightTexture",
+    "SetFrameStrata", "SetBlendMode", "RegisterEvent", "UnregisterEvent", "SetBackdrop", "SetBackdropColor", "SetBackdropBorderColor",
+    "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetNormalTexture", "SetPushedTexture", "SetHighlightTexture", "SetFontObject",
     "ClearFocus", "SetAlpha", "SetVertexColor", "SetScrollChild"}) do
     methods[name] = function() end
 end
@@ -80,6 +80,17 @@ function methods:GetChecked() return self.checked end
 function methods:SetScale(value) restricted(self); self.scale = value end
 function methods:SetFrameStrata(value) self.strata = value end
 function methods:SetFrameLevel(value) self.frameLevel = value end
+function methods:GetFrameLevel() return self.frameLevel or 1 end
+function methods:AddAuraSlot(key,filter,options)
+    self.auraSlots=self.auraSlots or {}; self.auraSlots[key]={filter=filter,options=options}
+    options.initializeFrame(object(self))
+end
+function methods:SetUnit(unit) self.nativeUnit=unit end
+function RegisterUnitWatch(frame) frame.unitWatch=true end
+function RegisterStateDriver(frame,state,condition)
+    if combat and not secure then error("state driver changed in combat") end
+    frame.stateDrivers=frame.stateDrivers or {}; frame.stateDrivers[state]=condition
+end
 function methods:SetFormattedText(fmt, ...) self.format, self.values = fmt, {...} end
 function methods:SetMinMaxValues(minimum, maximum) self.minimum, self.maximum = minimum, maximum end
 function methods:SetValue(value) self.value = value end

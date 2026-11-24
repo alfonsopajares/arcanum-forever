@@ -7,7 +7,7 @@ addon.procTypes = {
     {key="missiles", label="Missile Barrage", id=400589, callout="MISSILES READY", sound="pulse", duration=15},
     {key="fingers", label="Fingers of Frost", id=400670, callout="TARGET COUNTS AS FROZEN", sound="frost", duration=15, max=2},
     {key="heating", label="Heating Up", id=400625, callout="FASTER PYROBLAST", sound="fire", duration=20, max=3, threshold=3},
-    {key="arcane", label="Arcane Blast", id=400573, nameID=400574, callout="SPELL DAMAGE BOOST", sound="pulse", duration=15, max=4, threshold=4, quiet=true},
+    {key="arcane", label="Arcane Blast", id=400573, nameID=400574, callout="SPELL DAMAGE BOOST", sound="pulse", duration=18, max=4, threshold=4, harmful=true, quiet=true},
     {key="winter", label="Winter's Chill", id=12579, callout="CONE OF COLD BONUS", sound="frost", duration=15, max=5, threshold=5, target=true, quiet=true},
     {key="ignite", label="Ignite", id=12654, icon="Interface\\Icons\\Spell_Fire_Incinerate", callout="YOUR TARGET IS BURNING", sound="fire", duration=4, target=true, quiet=true},
 }
@@ -48,7 +48,7 @@ function addon:FindProcAura(def)
         or not UnitCanAttack or self:Readable(UnitCanAttack("player", unit)) ~= true
         or (UnitIsDeadOrGhost and self:Readable(UnitIsDeadOrGhost(unit)) == true)) then return nil, "absent" end
     local api, unknown = C_UnitAuras, false
-    local filter = def.target and "HARMFUL|PLAYER" or "HELPFUL"
+    local filter = def.target and "HARMFUL|PLAYER" or def.harmful and "HARMFUL" or "HELPFUL"
     local name = self:SpellInfo(def.nameID or def.id)
     local function accept(aura)
         if secret(aura) then unknown = true; return end
@@ -74,7 +74,7 @@ function addon:FindProcAura(def)
         if api and api.GetAuraDataByIndex then
             ok, aura = pcall(api.GetAuraDataByIndex, unit, index, filter)
         else
-            local query = def.target and UnitDebuff or UnitBuff
+            local query = (def.target or def.harmful) and UnitDebuff or UnitBuff
             if not query then return nil, "unavailable" end
             local v = {pcall(query, unit, index, filter)}
             ok = v[1]
@@ -97,6 +97,7 @@ end
 function addon:PlayProcSound(key, preview)
     local def, opt = self:ProcDefinition(key), self:ProcOption(key)
     if not def or not opt or (not preview and (not self.db.procs.sound or not opt.sound)) then return end
+    if not preview and self.procNativeSounds and self.procNativeSounds[key] then return end
     local now = clock()
     self.procLastSound = self.procLastSound or {}
     if not preview and (now - (self.procLastSound[key] or -100) < 1.5
@@ -127,7 +128,7 @@ function addon:CreateProcDisplay()
     frame.testLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     frame.testLabel:SetPoint("BOTTOM", 0, -18)
     frame.testLabel:SetText("TEST ALERTS — /arc procs stop")
-    frame.cards = {}
+    frame.cards, frame.native = {}, {}
     for _, def in ipairs(self.procTypes) do
         local card = CreateFrame("Frame", nil, frame)
         card:SetSize(176, 68)
@@ -170,6 +171,10 @@ function addon:CreateProcDisplay()
         if frame.elapsed >= 0.1 then frame.elapsed = 0; self:UpdateProcDisplay(true) end
     end)
     self.procDisplay, self.procPrevious, self.procStates = frame, {}, {}
+    for _, def in ipairs(self.procTypes) do frame.native[def.key]=self:CreateNativeProc(def) end
+    frame.selfEffects=self:CreateNativeSelfProcs()
+    frame.selfPreview=CreateFrame("Frame",nil,frame)
+    frame.selfPreview:SetSize(80,94); frame.selfPreview.regions=self:StyleSelfProc(frame.selfPreview,false); frame.selfPreview:Hide()
     self:ApplyProcSettings()
 end
 
@@ -179,6 +184,7 @@ function addon:ApplyProcSettings()
     frame:ClearAllPoints(); frame:SetPoint(opt.point, UIParent, opt.relativePoint, opt.x, opt.y)
     frame:SetScale(opt.scale / 100); frame:EnableMouse(not opt.locked)
     frame.handle:SetShown(not opt.locked)
+    self:ConfigureNativeProcSounds()
     self:UpdateProcDisplay(false)
 end
 
@@ -208,7 +214,8 @@ function addon:UpdateProcDisplay(allowSound)
             -- Losing access to stacks must not manufacture a below-threshold
             -- observation and then sound again when access returns.
             if not def.threshold or count ~= nil then self.procPrevious[def.key] = {ready=ready} end
-            if enabled then
+            local selfDisplay=def.harmful and frame.selfEffects
+            if enabled and not selfDisplay and not (frame.native[def.key] and InCombatLockdown() and not self.procTest) then
                 visible[#visible+1] = card
                 card.count:SetText("")
                 if def.max then
@@ -238,13 +245,47 @@ function addon:UpdateProcDisplay(allowSound)
         end
         card:Hide()
     end
-    local cols = math.min(3,math.max(1,#visible))
+    local nativeCount=0
+    for _, def in ipairs(self.procTypes) do
+        local holder=frame.native[def.key]
+        if holder then
+            local enabled=cfg.enabled and self:ProcOption(def.key).enabled and InCombatLockdown() and not self.procTest
+                and (def.key~="ignite" or self.db.showIgnite)
+            if enabled then
+                holder:ClearAllPoints()
+                holder:SetPoint("TOPLEFT",(nativeCount%3)*184,-20-math.floor(nativeCount/3)*72)
+                nativeCount=nativeCount+1
+            end
+            holder:SetShown(enabled)
+        end
+    end
+    local total=nativeCount+#visible
+    local cols = math.min(3,math.max(1,total))
     for index, card in ipairs(visible) do
         card:ClearAllPoints()
-        card:SetPoint("TOPLEFT", ((index-1)%3)*184, -20-math.floor((index-1)/3)*72)
+        local slot=nativeCount+index-1
+        card:SetPoint("TOPLEFT", (slot%3)*184, -20-math.floor(slot/3)*72)
         card:Show()
     end
-    frame:SetSize(cols*184, math.max(1,math.ceil(#visible/3))*72+20)
+    local rows=math.max(1,math.ceil(total/3))
+    local showSelf=frame.selfEffects and cfg.enabled and self:ProcOption("arcane").enabled and not self.procTest
+    if frame.selfEffects then
+        frame.selfEffects:ClearAllPoints(); frame.selfEffects:SetPoint("TOPLEFT",0,-20-rows*72)
+        frame.selfEffects:SetShown(showSelf and true or false)
+    end
+    local sample=self.procTest and self.procTest.auras.arcane
+    local showSample=sample and frame.selfEffects
+    frame.selfPreview:SetShown(showSample and true or false)
+    if showSample then
+        local r=frame.selfPreview.regions
+        local def=self:ProcDefinition("arcane")
+        local _,icon=self:SpellInfo(def.nameID or def.id)
+        r.icon:SetTexture(icon or "Interface\\Icons\\Spell_Arcane_Blast")
+        r.name:SetText("Arcane Blast"); r.count:SetText(tostring(sample.applications))
+        r.timer:SetText(string.format("%.1fs",math.max(0,sample.expirationTime-now)))
+        frame.selfPreview:ClearAllPoints(); frame.selfPreview:SetPoint("TOPLEFT",0,-20-rows*72)
+    end
+    frame:SetSize(math.max(cols*184,showSelf and 480 or 0),rows*72+20+((showSelf or showSample) and 98 or 0))
     frame.testLabel:SetShown(self.procTest ~= nil)
     -- The controller stays shown so its ticker can discover newly active auras.
 end
@@ -255,6 +296,7 @@ function addon:TestProc(key, operation)
     local now = clock()
     self.procTest = self.procTest or {auras={}, ends=now+30}
     self.procTest.ends = now+30
+    self:ConfigureNativeProcSounds()
     local function fill(def, count)
         self.procTest.auras[def.key] = {applications=count or 1,expirationTime=now+def.duration,sourceUnit="player"}
     end
@@ -273,13 +315,14 @@ function addon:TestProc(key, operation)
             if not def.threshold or self.procTest.auras[key].applications >= def.threshold then self:PlayProcSound(key,false) end
         end
     end
+    self:ConfigureNativeProcSounds()
     self:UpdateProcDisplay(false)
     return true
 end
 
 function addon:StopProcTest()
     self.procTest, self.procPrevious = nil, {}
-    if self.procDisplay then self:UpdateProcDisplay(false) end
+    if self.procDisplay then self:ConfigureNativeProcSounds(); self:UpdateProcDisplay(false) end
 end
 
 -- Existing callers and saved Ignite visibility keep working with the new row.

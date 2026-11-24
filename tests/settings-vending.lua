@@ -205,6 +205,30 @@ addon:FillTrade("food"); drain()
 check(not offer[1] and bag(0)[1].count == 11 and bag(0)[2].count == 9, "manual stack add does not process partial bag stacks")
 C_Container.SplitContainerItem = originalSplit
 resetTrade()
+bag(0)[1], bag(0)[2] = {id=1113,count=2}, {id=5349,count=20}
+addon.trade.class = "ROGUE"
+addon.trade.targets = {food=20,water=0}
+addon:FillTrade(); drain()
+check(offer[1].id == 5349 and offer[1].count == 20 and not offer[2], "rogue preset prefers an intact usable lower-rank stack over a newer two-item batch")
+check(bag(0)[1].id == 1113 and bag(0)[1].count == 2, "full-stack preset leaves the newer partial batch alone")
+resetTrade()
+bag(0)[1],bag(0)[2],bag(0)[3]={id=1113,count=2},{id=5349,count=18},{id=5349,count=2}
+addon.trade.targets={food=20,water=0}
+addon:FillTrade(); drain()
+check(offer[1].id==5349 and offer[1].count==20 and not offer[2], "preset consolidates a complete matching-rank batch before offering a tiny newer batch")
+resetTrade()
+for slot=1,10 do bag(0)[slot]={id=1113,count=2} end
+addon.trade.targets={food=20,water=0}
+addon:FillTrade(); drain()
+check(offer[1].count==20 and not offer[2], "ten two-item conjured batches fill one full trade stack")
+resetTrade()
+bag(0)[1],bag(0)[2]={id=1113,count=2},{id=5349,count=20}
+addon.db.vending.reserveFood=5
+addon.trade.targets={food=20,water=0}
+addon:FillTrade(); drain()
+check(offer[1].count==17 and not offer[2] and select(2,addon:SupplyStacks("food"))==5, "larger-stack selection preserves personal reserves and exact shortage")
+addon.db.vending.reserveFood=0
+resetTrade()
 for slot = 1, 12 do bag(0)[slot] = {id=1113,count=1} end
 addon.trade.targets = {food=20,water=0}
 addon:FillTrade(); drain()

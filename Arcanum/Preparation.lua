@@ -3,31 +3,160 @@ local _, addon = ...
 addon.distribution = {}
 local function now() return GetTime and GetTime() or 0 end
 
-function addon:GroupMembers()
+function addon:GroupMembers(includeOffline)
     local members, player = {}, UnitGUID and self:Readable(UnitGUID("player"))
     local raid = IsInRaid and self:Readable(IsInRaid()) == true
     local count = raid and (GetNumGroupMembers and self:Readable(GetNumGroupMembers()) or 0)
         or (GetNumSubgroupMembers and self:Readable(GetNumSubgroupMembers()) or 0)
+    local seen = {}
     for index = 1, math.min(40, count) do
         local unit = (raid and "raid" or "party") .. index
         local name = self:Readable(UnitName(unit))
         local guid = UnitGUID and self:Readable(UnitGUID(unit))
-        if name and (not player or guid ~= player) then
+        local key = guid or name
+        local connected = not UnitIsConnected or self:Readable(UnitIsConnected(unit)) == true
+        local isPlayer = UnitIsUnit and self:Readable(UnitIsUnit(unit, "player")) == true
+        if name and (connected or includeOffline) and not isPlayer and (not player or guid ~= player) and not seen[key] then
             local _, class = UnitClass(unit)
-            members[#members + 1] = {name=name, key=guid or name, class=self:Readable(class) or "UNKNOWN"}
+            local level = UnitLevel and self:Readable(UnitLevel(unit))
+            seen[key] = true
+            local _, realm = UnitName(unit)
+            realm = self:Readable(realm)
+            if not realm or realm=="" then
+                realm=GetNormalizedRealmName and self:Readable(GetNormalizedRealmName()) or GetRealmName and self:Readable(GetRealmName())
+            end
+            if type(realm)=="string" then realm=realm:gsub("%s","") end
+            local subgroup = raid and GetRaidRosterInfo and self:Readable(select(3,GetRaidRosterInfo(index)))
+            members[#members + 1] = {name=name, key=key, unit=unit, subgroup=subgroup or 1, class=self:Readable(class) or "UNKNOWN", online=connected,
+                fullName=type(realm)=="string" and realm~="" and (name.."-"..realm) or name,
+                level=type(level)=="number" and level>0 and level or 1}
         end
     end
     return members
 end
 
 function addon:ActiveProfile()
-    local name = self.db.preparation.profile
-    if name == "auto" then
-        if IsInRaid and self:Readable(IsInRaid()) == true then name = "raid"
-        elseif #self:GroupMembers() > 0 then name = "party" else name = "solo" end
+    return "solo", self.db.preparation.profiles.solo
+end
+
+-- Cache bag space between inventory events. A partial stack only helps its own rank.
+function addon:GroupConjureRoom(item)
+    if not self.supplyBagRoom then
+        local api=C_Container
+        if not (api and api.GetContainerNumFreeSlots and api.GetContainerItemInfo and api.GetContainerNumSlots) then return true end
+        local room={}
+        for bag=0,4 do
+            local free,family=api.GetContainerNumFreeSlots(bag)
+            if (self:Readable(free) or 0)>0 and self:Readable(family)==0 then room.any=true; break end
+        end
+        if not room.any then
+            for bag=0,4 do
+                for slot=1,self:Readable(api.GetContainerNumSlots(bag)) or 0 do
+                    local info=self:Readable(api.GetContainerItemInfo(bag,slot))
+                    local id=info and self:Readable(info.itemID)
+                    if self.supplyItems[id] and self:Readable(info.isLocked)==false then
+                        local count=self:Readable(info.stackCount)
+                        local query=C_Item and C_Item.GetItemInfo or GetItemInfo
+                        local maximum=query and self:Readable(select(8,query(id))) or 20
+                        if count and count<maximum then room[id]=true end
+                    end
+                end
+            end
+        end
+        self.supplyBagRoom=room
     end
-    if not self.db.preparation.profiles[name] then name = "solo" end
-    return name, self.db.preparation.profiles[name]
+    return self.supplyBagRoom.any or self.supplyBagRoom[item]
+end
+
+local function allocate(stock,definition,level,need)
+    for rank=#definition.items,1,-1 do
+        if definition.levels[rank]<=level then
+            local used=math.min(need,stock[rank])
+            need,stock[rank]=need-used,stock[rank]-used
+        end
+    end
+    return need
+end
+
+-- Allocate low-level recipients first so unusable high ranks cannot mark them ready.
+function addon:GroupPreparationProfile()
+    local estimate, members = self:EstimateSupplies()
+    local personal = self.db.preparation.profiles.solo
+    estimate.food = estimate.food + math.max(0, personal.food - self.db.vending.reserveFood)
+    estimate.water = estimate.water + math.max(0, personal.water - self.db.vending.reserveWater)
+    estimate.group = true
+    estimate.players = #members + 1
+    estimate.breakdown = {}
+    local demands = {}
+    for _, member in ipairs(members) do
+        local request=self:GetGroupSupplyRequest(member)
+        local demand={level=member.level or 1,food=request.food,water=request.water}
+        demands[#demands+1] = demand
+        estimate.breakdown[#estimate.breakdown+1] = string.format("%s: %d food, %d water", member.name, demand.food, demand.water)
+    end
+    local level = UnitLevel and self:Readable(UnitLevel("player"))
+    local reserve = {level=type(level)=="number" and level>0 and level or 1,
+        food=math.max(personal.food,self.db.vending.reserveFood), water=math.max(personal.water,self.db.vending.reserveWater)}
+    demands[#demands+1]=reserve
+    estimate.breakdown[#estimate.breakdown+1] = string.format("You (including reserves): %d food, %d water",
+        math.max(personal.food,self.db.vending.reserveFood),math.max(personal.water,self.db.vending.reserveWater))
+    table.sort(demands,function(a,b) return a.level<b.level end)
+    estimate.missing, estimate.nextSupply = {food=0,water=0}, {}
+    local stock,definitions={},{}
+    for _, definition in ipairs(self.spells) do
+        if definition.kind then
+            local kind, available = definition.kind, {}
+            for rank,item in ipairs(definition.items) do available[rank]=self:ItemCount(item) end
+            stock[kind],definitions[kind]=self:Clone(available),definition
+            allocate(stock[kind],definition,reserve.level,reserve[kind])
+            for _, demand in ipairs(demands) do
+                local need=allocate(available,definition,demand.level,demand[kind])
+                estimate.missing[kind]=estimate.missing[kind]+need
+                if need>0 and not estimate.nextSupply[kind] then
+                    for rank=#definition.ranks,1,-1 do
+                        local id=definition.ranks[rank]
+                        if definition.levels[rank]<=demand.level and self:KnownSpell(id) then
+                            local name=self:SpellInfo(id)
+                            if name and not self:GroupConjureRoom(definition.items[rank]) then
+                                estimate.bagLimited=true
+                            elseif name then estimate.nextSupply[kind]={kind="spell",conjure=true,id=id,name=name,
+                                countItem=definition.items[rank],exactRank=true}; break end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    estimate.ready,estimate.near,estimate.readyCount={},{},0
+    local waiting={}
+    for index,member in ipairs(members) do
+        local request=self:GetGroupSupplyRequest(member)
+        if request.food+request.water>0 then
+            local ok,near=false,false
+            if CheckInteractDistance and member.unit then ok,near=pcall(CheckInteractDistance,member.unit,2) end
+            estimate.near[member.key]=ok and self:Readable(near)==true
+            waiting[#waiting+1]={member=member,request=request,index=index}
+        end
+    end
+    table.sort(waiting,function(a,b)
+        if estimate.near[a.member.key]~=estimate.near[b.member.key] then return estimate.near[a.member.key] end
+        return a.index<b.index
+    end)
+    for _,row in ipairs(waiting) do
+        local remaining=self:Clone(stock)
+        local food=allocate(remaining.food,definitions.food,row.member.level or 1,row.request.food)
+        local water=allocate(remaining.water,definitions.water,row.member.level or 1,row.request.water)
+        if food+water==0 then
+            stock=remaining
+            estimate.ready[row.member.key]=true
+            estimate.readyCount=estimate.readyCount+1
+        end
+    end
+    return estimate
+end
+
+function addon:EditablePreparationProfile()
+    return self.db.preparation.profiles.solo
 end
 
 function addon:PruneDistribution()
@@ -41,23 +170,20 @@ end
 function addon:EstimateSupplies()
     self:PruneDistribution()
     local estimate = {food=self.db.vending.reserveFood, water=self.db.vending.reserveWater}
-    local members = self:GroupMembers()
-    for _, member in ipairs(members) do
-        local preset = self.db.vending.presets[member.class] or self.db.vending.presets.UNKNOWN
-        local given = self.db.preparation.trackTrades and self.distribution[member.key]
-        estimate.food = estimate.food + math.max(0, preset.food - (given and given.food or 0))
-        estimate.water = estimate.water + math.max(0, preset.water - (given and given.water or 0))
+    local members = {}
+    for _, member in ipairs(self:GroupMembers()) do
+        if not self:SupplyAssignment(member) then
+            members[#members+1] = member
+            local request=self:GetGroupSupplyRequest(member)
+            estimate.food=estimate.food+request.food
+            estimate.water=estimate.water+request.water
+        end
     end
     return estimate, members
 end
 
 function addon:SetTargetsFromGroup()
-    local estimate, members = self:EstimateSupplies()
-    if #members == 0 then return end
-    local _, profile = self:ActiveProfile()
-    profile.food, profile.water = estimate.food, estimate.water
-    self:SettingsChanged()
-    self:OpenSettings("Preparation")
+    if self.OpenGroupSupplies then self:OpenGroupSupplies() end
 end
 
 function addon:SupplyStatus()
@@ -80,28 +206,48 @@ end
 -- Trade acceptance is not completion. Record only the client's success message,
 -- allowing it to arrive just after TRADE_CLOSED. Each snapshot is consumed once.
 function addon:DistributionEvent(event, first, message)
-    if event == "TRADE_SHOW" then self.acceptedTrade = nil; return end
+    if event == "TRADE_SHOW" or event == "TRADE_REQUEST_CANCEL" then
+        self.acceptedTrade, self.closedSupplyTrade = nil, nil; return
+    end
     if event == "TRADE_PLAYER_ITEM_CHANGED" or event == "TRADE_TARGET_ITEM_CHANGED" then
+        if not self.trade.open or self.closedSupplyTrade then return end
         self.acceptedTrade = nil; return
     end
     if event == "TRADE_ACCEPT_UPDATE" then
+        if not self.trade.open or self.closedSupplyTrade then return end
         self.acceptedTrade = nil
         if self:Readable(first) ~= 1 or not self.trade.open then return end
         local totals = self:TradeOffer()
         if totals then
-            self.acceptedTrade = {key=self.trade.key or self.trade.name, name=self.trade.name,
+            local key = self.trade.key or self.trade.name
+            -- NPC GUIDs can be unavailable: resolve a unique roster name while
+            -- the trade is still open, so the delivery uses the roster's key.
+            if key == self.trade.name then
+                local match, ambiguous
+                for _, member in ipairs(self:GroupMembers()) do
+                    if member.name == self.trade.name then
+                        if match then ambiguous = true else match = member.key end
+                    end
+                end
+                if match and not ambiguous then key = match end
+            end
+            self.acceptedTrade = {key=key, name=self.trade.name,
                 class=self.trade.class, food=totals.food, water=totals.water, time=now()}
         end
     elseif event == "TRADE_CLOSED" then
-        if self.acceptedTrade then self.acceptedTrade.closed = now() end
+        if self.acceptedTrade and not self.closedSupplyTrade then
+            self.acceptedTrade.closed = now()
+            self.closedSupplyTrade, self.acceptedTrade = self.acceptedTrade, nil
+        end
     elseif event == "UI_INFO_MESSAGE" then
         message = self:Readable(message)
-        local snapshot = self.acceptedTrade
+        local snapshot = self.closedSupplyTrade or self.acceptedTrade
         if not snapshot or not ERR_TRADE_COMPLETE or message ~= ERR_TRADE_COMPLETE then return end
-        self.acceptedTrade = nil
+        self.acceptedTrade, self.closedSupplyTrade = nil, nil
         if snapshot.closed and now() - snapshot.closed > 5 then return end
         if snapshot.food + snapshot.water > 0 then
             self:SendMageMessage("trade", "success", {target=snapshot.name, food=snapshot.food, water=snapshot.water})
+            if self.GroupSupplyDelivered then self:GroupSupplyDelivered(snapshot) end
         end
         if not self.db.preparation.trackTrades or (snapshot.closed and now() - snapshot.closed > 5) then return end
         if snapshot.food + snapshot.water == 0 then return end
@@ -113,12 +259,13 @@ function addon:DistributionEvent(event, first, message)
         snapshot.time, snapshot.closed = self:EpochTime(), nil
         self.distribution[snapshot.key] = snapshot
         self:DebugLog("trade completed", string.format("%s: delivered food=%d water=%d", snapshot.name, deliveredFood, deliveredWater))
+        self:RefreshActions()
         self:RefreshPreparationUI()
     end
 end
 
 function addon:ResetDistribution()
-    self.distribution, self.acceptedTrade = {}, nil
+    self.distribution, self.acceptedTrade, self.closedSupplyTrade = {}, nil, nil
     self.character.distribution = self.distribution
     self:RefreshPreparationUI()
 end
@@ -155,11 +302,13 @@ function addon:UpdateReminders()
     if active then
         local stock = self:SupplyStatus()
         local _, profile = self:ActiveProfile()
-        if options.food and stock.food < math.min(options.lowFood, profile.food) then
-            warn("refreshments", string.format("Need %d more food (%d/%d). Click Prepare or the food/water menu.", profile.food-stock.food, stock.food, profile.food))
+        local food = profile.missing and profile.food-profile.missing.food or stock.food
+        local water = profile.missing and profile.water-profile.missing.water or stock.water
+        if options.food and food < math.min(options.lowFood, profile.food) then
+            warn("refreshments", string.format("Need %d more food (%d/%d usable). Click Prepare or the food/water menu.", profile.food-food, food, profile.food))
         end
-        if options.water and stock.water < math.min(options.lowWater, profile.water) then
-            warn("refreshments", string.format("Need %d more water (%d/%d). Click Prepare or the food/water menu.", profile.water-stock.water, stock.water, profile.water))
+        if options.water and water < math.min(options.lowWater, profile.water) then
+            warn("refreshments", string.format("Need %d more water (%d/%d usable). Click Prepare or the food/water menu.", profile.water-water, water, profile.water))
         end
         if options.gems and stock.missingGems > 0 then
             for _, definition in ipairs(self.spells) do
@@ -192,7 +341,8 @@ function addon:UpdateReminders()
                 buffMessages[#buffMessages + 1] = missing
                 warn("armor", missing .. ". Open Armor or use the Armor keybinding.")
             end
-            if options.intellect and intellectKnown and self:HasPlayerBuff(intellectRanks, buffs) == false then
+            if options.intellect and intellectKnown and self:HasPlayerBuff(intellectRanks, buffs) == false
+                and self:HasIncenseIntellect() == false then
                 local missing = (self:SpellInfo(1459) or "Arcane Intellect") .. " missing"
                 buffMessages[#buffMessages + 1] = missing
                 warn("buffs", missing .. ". Open Buffs or use the Intellect keybinding.")
@@ -224,6 +374,63 @@ function addon:UpdateReminders()
     self:RefreshPreparationUI()
 end
 
+-- Forever bundles Candle into Camp Benefits (1229741). Its live tooltip lists
+-- the individual benefits; the presence of the camp aura alone is insufficient.
+function addon:CampHasIncense(index, name)
+    local query = C_TooltipInfo and C_TooltipInfo.GetUnitBuff
+    if not query then return nil end
+    local ok, result = pcall(function()
+        local tip = self:Readable(query("player", index))
+        local lines = tip and self:Readable(tip.lines)
+        if type(lines) ~= "table" then return nil end
+        local unknown = false
+        for _, line in ipairs(lines) do
+            line = self:Readable(line)
+            if not line then unknown = true
+            else
+                for _, field in ipairs({"leftText", "rightText"}) do
+                    local raw = line[field]
+                    local text = self:Readable(raw)
+                    if issecretvalue and issecretvalue(raw) then unknown = true
+                    elseif type(text) == "string" and text:find(name .. ":", 1, true) then return true end
+                end
+            end
+        end
+        if unknown then return nil end
+        return false
+    end)
+    if ok then return result end
+    return nil
+end
+
+function addon:HasIncenseIntellect()
+    local direct = C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID
+    if direct then
+        local ok, aura = pcall(direct, 1229741)
+        if not ok or (issecretvalue and issecretvalue(aura)) then return nil end
+        if aura == nil then return false end
+    end
+    local query = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex
+    if not query then return nil end
+    local unknown = false
+    for index = 1, 80 do
+        local ok, aura = pcall(query, "player", index, "HELPFUL")
+        if not ok then return nil end
+        if issecretvalue and issecretvalue(aura) then unknown = true
+        elseif aura == nil then
+            if unknown then return nil end
+            return false
+        else
+            local id = self:Readable(aura.spellId)
+            if id == 1229741 then
+                return self:CampHasIncense(index, self:SpellInfo(1307251) or "Incense Candle")
+            end
+            if not id then unknown = true end
+        end
+    end
+    return nil
+end
+
 -- Direct queries isolate our long-duration buffs from unrelated secret auras.
 -- An unavailable result remains unknown, rather than pretending a buff is missing.
 function addon:HasPlayerBuff(ids, fallback)
@@ -245,16 +452,15 @@ end
 function addon:RefreshPreparationUI()
     if not self.settings then return end
     if self.settings.preparationSummary then
-        local name, profile = self:ActiveProfile()
+        local _, profile = self:ActiveProfile()
+        local inputs = self:EditablePreparationProfile()
         for kind, input in pairs(self.settings.preparationInputs or {}) do
-            if not input.HasFocus or not input:HasFocus() then input:SetText(tostring(profile[kind])) end
+            if not input.HasFocus or not input:HasFocus() then input:SetText(tostring(inputs[kind])) end
         end
         local stock = self:SupplyStatus()
-        local estimate, members = self:EstimateSupplies()
         self.settings.preparationSummary:SetText(string.format(
-            "Active profile: %s\nFood: %d / %d • Water: %d / %d\nMana gems: %d carried • %d learned gems missing\nGroup still needs: %d food, %d water (%d recipients; includes your reserves)",
-            name, stock.food, profile.food, stock.water, profile.water, stock.gems, stock.missingGems,
-            estimate.food, estimate.water, #members))
+            "Your supplies: %d / %d food • %d / %d water\nMana gems: %d carried • %d learned gems missing",
+            stock.food, profile.food, stock.water, profile.water, stock.gems, stock.missingGems))
     end
     if self.settings.distributionText then
         self:PruneDistribution()
@@ -279,11 +485,12 @@ function addon:RefreshPreparationUI()
 end
 
 local bindings = {
+    Toggle="Toggle circle",
     Orb="Orb action", Evocation="Evocation", EatDrink="Eat and drink",
     Blink="Blink", Counterspell="Counterspell", RemoveCurse="Remove Lesser Curse", Polymorph="Polymorph",
     Prepare="Prepare supplies", Intellect="Self: Arcane Intellect", Armor="Self: best learned armor",
+    DriveBy="Drive-by Intellect (mouseover, outside combat)",
 }
-BINDING_HEADER_ARCANUM = "Arcanum Forever"
 for key, label in pairs(bindings) do _G["BINDING_NAME_CLICK Arcanum" .. key .. "Key:LeftButton"] = label end
 
 function addon:CreatePreparationButtons()
@@ -294,6 +501,10 @@ function addon:CreatePreparationButtons()
         button:RegisterForClicks("AnyDown", "AnyUp"); button:SetAttribute("useOnKeyDown", false)
         self.keyButtons[key] = button
     end
+    self.keyButtons.Toggle:HookScript("OnClick",function(_,_,down)
+        if not down then self:HandleCommand("toggle") end
+    end)
+    self:SetupDriveBy()
     local prepare = CreateFrame("Button", "ArcanumPrepareButton", self.frame, "SecureActionButtonTemplate,UIPanelButtonTemplate")
     prepare:SetSize(148, 22); prepare:RegisterForClicks("AnyDown", "AnyUp")
     prepare:SetAttribute("useOnKeyDown", false)
@@ -303,6 +514,7 @@ function addon:CreatePreparationButtons()
         self:TooltipControl("Left-click", "Conjure next supply")
         tip:AddLine(" ")
         tip:AddLine(self.prepareMessage or "", 1, 1, 1, true)
+        for _, line in ipairs(self.prepareBreakdown or {}) do tip:AddLine(line, 0.7, 0.8, 1, true) end
         tip:AddLine("One cast per click, outside combat.", 0.6, 0.8, 1, true)
         self:TooltipSupplies()
         self:FinishTooltip()
@@ -312,16 +524,34 @@ function addon:CreatePreparationButtons()
         if not down then self:DebugLog("prepare click", self.prepareMessage) end
     end)
     self.prepareButton = prepare
+    local supplies = CreateFrame("Button", nil, self.frame, "UIPanelButtonTemplate")
+    supplies:SetSize(116, 22)
+    supplies:SetText("Group Supplies")
+    supplies:SetScript("OnClick", function() self:OpenGroupSupplies() end)
+    supplies:Hide()
+    self.groupSuppliesButton = supplies
+    for _, button in ipairs({prepare,self.keyButtons.Prepare}) do
+        SecureHandlerWrapScript(button,"OnClick",button,[[
+            if SecureCmdOptionParse("[combat] combat") then self:SetAttribute("type1","") end
+        ]])
+    end
     local elapsed = 0
     self.preparationTicker = CreateFrame("Frame")
     self.preparationTicker:SetScript("OnUpdate", function(_, delta)
         elapsed = elapsed + delta
-        if elapsed >= 2 then elapsed = 0; self:UpdateReminders() end
+        if elapsed >= 2 then
+            elapsed = 0
+            if self.preparationActions and not InCombatLockdown() then self:RefreshPrepareButton(self.preparationActions) end
+            self:UpdateGroupSupplies()
+            self:UpdateReminders()
+        end
     end)
 end
 
 function addon:RefreshPreparationActions(actions)
     if not self.keyButtons then return end
+    self.preparationActions = actions
+    self:ConfigureDriveBy()
     local function bind(button, action)
         button:SetAttribute("type1", action and action.kind or "")
         button:SetAttribute("spell1", action and action.kind == "spell" and action.id or nil)
@@ -359,7 +589,10 @@ function addon:RefreshPrepareButton(actions)
     end
     if not step then
         for _, wanted in ipairs({"water", "food"}) do
-            if stock[wanted] < profile[wanted] then
+            if profile.missing and profile.missing[wanted]>0 then
+                step,kind=profile.nextSupply[wanted],wanted=="water" and "Water" or "Food"
+                if step then break end
+            elseif not profile.missing and stock[wanted] < profile[wanted] then
                 for _, action in ipairs(actions.refreshments) do
                     local supply = action.kind == "spell" and action.conjure and self.supplyItems[action.countItem]
                     if supply and supply.kind == wanted then step, kind = action, wanted == "water" and "Water" or "Food"; break end
@@ -368,23 +601,41 @@ function addon:RefreshPrepareButton(actions)
             end
         end
     end
-    local ready = stock.missingGems == 0 and stock.food >= profile.food and stock.water >= profile.water
+    local ready = stock.missingGems == 0 and (profile.missing and profile.missing.food==0 and profile.missing.water==0
+        or not profile.missing and stock.food >= profile.food and stock.water >= profile.water)
     self.prepareAction = step
     self.prepareMessage = step and ("Next: " .. step.name .. string.format(". Food %d/%d; water %d/%d; %d gems missing.", stock.food,profile.food,stock.water,profile.water,stock.missingGems))
         or ready and "All preparation targets met."
         or "Learn the missing conjure spells to reach your preparation targets."
+    self.prepareBreakdown=profile.breakdown
+    if profile.group then
+        self.prepareMessage=string.format("Preparing for %d players: %d food, %d water.\nStill needed: %d food, %d water.\n",profile.players,profile.food,profile.water,profile.missing.food,profile.missing.water)..self.prepareMessage
+    end
     self.prepareButton:SetText(step and ("Prepare: " .. kind) or ready and "Prepared!" or "Prepare: unavailable")
     for _, button in ipairs({self.prepareButton, self.keyButtons.Prepare}) do
-        button:SetAttribute("type1", step and "macro" or "")
-        button:SetAttribute("macrotext1", step and ("/cast [nocombat] " .. step.name) or nil)
+        button:SetAttribute("type1", step and (step.exactRank and "spell" or "macro") or "")
+        button:SetAttribute("spell1", step and step.exactRank and step.id or nil)
+        button:SetAttribute("macrotext1", step and not step.exactRank and ("/cast [nocombat] " .. step.name) or nil)
     end
-    local offset = 30
+end
+
+function addon:LayoutPreparationButtons(grouped)
+    local showPrepare = self.db.preparation.showPrepare
+    local showBoth = showPrepare and grouped
+    local y = -(self.db.radius + 30)
     self.prepareButton:ClearAllPoints()
-    self.prepareButton:SetPoint("TOP", self.frame, "CENTER", 0, -(self.db.radius + offset))
-    self.prepareButton:SetShown(self.db.preparation.showPrepare)
+    self.prepareButton:SetPoint("TOP", self.frame, "CENTER", showBoth and -61 or 0, y)
+    self.prepareButton:SetShown(showPrepare)
+    self.groupSuppliesButton:ClearAllPoints()
+    if showBoth then
+        self.groupSuppliesButton:SetPoint("LEFT", self.prepareButton, "RIGHT", 6, 0)
+    else
+        self.groupSuppliesButton:SetPoint("TOP", self.frame, "CENTER", 0, y)
+    end
+    self.groupSuppliesButton:SetShown(grouped)
     self.buffReminderFrame:ClearAllPoints()
     self.buffReminderFrame:SetPoint("TOP", self.frame, "CENTER", 0,
-        -(self.db.radius + offset + (self.db.preparation.showPrepare and 32 or 0)))
+        y - ((showPrepare or grouped) and 32 or 0))
 end
 
 function addon:EatDrinkAction(actions)

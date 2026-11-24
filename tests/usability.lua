@@ -130,9 +130,23 @@ addon.trade.job = {}
 check(addon:TradeControlReason("fill"):find("Waiting"), "active inventory move disables new actions")
 addon.trade.job = nil
 addon:UpdateTradeUI()
-check(addon.tradeUI.status.text:find("40 needed",1,true) and addon.tradeUI.status.text:find("Keep for yourself",1,true), "trade preview shows deficits and personal reserves")
+check(addon.tradeUI.offered.water.text == "0" and addon.tradeUI.status.text=="Need 20 more water", "trade preview shows the exact supply shortage")
+addon.trade.targets.water=20
+addon:UpdateTradeUI()
+check(addon.tradeUI.status.text=="Ready to add" and addon.tradeUI.buttons.fill.text=="Add requested supplies","available requests show a clear next action")
+addon.trade.targets.water=40
 combat = true
 addon:UpdateTradeUI()
-check(not addon.tradeUI.buttons.water.enabled and addon.tradeUI.reasons.water.text:find("combat"), "disabled trade control displays its combat reason")
+check(not addon.tradeUI.buttons.water.enabled and addon.tradeUI.status.text:find("combat"), "disabled trade control displays its combat reason")
 combat = false
+local originalOffer = addon.TradeOffer
+addon.TradeOffer = function()
+    return {food=addon.trade.targets.food, water=addon.trade.targets.water}, {}, {}
+end
+addon:UpdateTradeUI()
+check(addon.tradeUI.status.text == "Request filled\nReview and confirm trade", "completed request explains the next manual trade action")
+addon.TradeOffer = function() return nil, "Trade item details are unavailable." end
+addon:UpdateTradeUI()
+check(addon.tradeUI.offered.food.text == "?" and addon.tradeUI.offered.water.text == "?", "unavailable trade quantities never look like zero or completed supplies")
+addon.TradeOffer = originalOffer
 io.write("Passed ", checks, " preparation workflow, dropdown, persistence, and trade feedback checks.\n")

@@ -14,7 +14,7 @@ addon.defaults = {
     closeDelay = 0.35,
     iconsPerRow = 6,
     flyoutDirection = "auto",
-    centerAction = "gem",
+    centerAction = "eatdrink",
     showCounts = true,
     showCooldowns = true,
     showTooltips = true,
@@ -38,7 +38,11 @@ addon.defaults = {
     showCooldownNumbers = true,
     colorTheme = "arcane",
     recipientBuffRanks = true,
+    driveBy = {enabled=true, targetFallback=false, manaOnly=false, skipBuffed=true, confirm=true, sound=false},
+    curseHelper = {enabled=true,hideSolo=true,locked=true,sound=false,scale=100,
+        point="TOPLEFT",relativePoint="CENTER",x=190,y=60},
     minimap = {enabled=true, angle=225},
+    scrolls = {enabled=true,point="CENTER",relativePoint="CENTER",x=260,y=0},
     categoryOrder = {},
     lastSelections = {},
     messages = {
@@ -54,8 +58,9 @@ addon.defaults = {
     debugLogging = false,
     preparation = {
         profile = "auto", showPrepare = true, trackTrades = true, historyMinutes = 30,
-        profiles = {solo={food=20,water=40}, party={food=40,water=120}, raid={food=100,water=240}},
+        profiles = {solo={food=20,water=40}, manual={food=40,water=120}, party={food=40,water=120}, raid={food=100,water=240}},
     },
+    groupSupplies = {whispers=true,coordinate=true,collapsed=false,point="CENTER",relativePoint="CENTER",x=300,y=0},
     reminders = {
         enabled=true, hideInCombat=true, groupOnly=false,
         food=true, water=true, gems=true, armor=true, intellect=true, reagents=true,
@@ -133,6 +138,7 @@ function addon:NormalizeSettings()
     self.db.hearthstoneShortcut = nil
     if self.db.centerAction == "drink" or self.db.centerAction == "water" then self.db.centerAction = "eatdrink" end
     self.db.preparation.showEatDrink = nil
+    self.db.groupSupplies.autoShow = nil
 end
 
 function addon:CharacterOptions()
@@ -195,6 +201,8 @@ function addon:ApplySettings()
     self.manaText:SetTextColor(unpack(color))
     self:UpdateMinimapButton()
     self:ApplyProcSettings()
+    self:ApplyCurseSettings()
+    self:UpdateScrollWindow()
     self:RefreshActions()
     self:UpdateMana()
     if self.trade and self.trade.open then self:UpdateTradeUI() end

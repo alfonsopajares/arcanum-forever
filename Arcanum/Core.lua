@@ -6,9 +6,21 @@ end
 
 function addon:HandleCommand(command)
     command = (command or ""):match("^%s*(.-)%s*$"):lower()
+    if command == "supplies" then self:OpenGroupSupplies(); return end
+    if command == "scrolls" then self.scrollDismissed = nil; self:UpdateScrollWindow(); return end
+    if command == "scrolls reset" then self:ResetScrollPosition(); return end
     if command == "procs" then self:OpenSettings("Procs"); return end
+    if command == "procs status" then self:PrintProcBackendStatus(); return end
     if command == "procs test" then self:TestProc("all"); return end
+    if command == "procs test arcane" then
+        self:StopProcTest()
+        for i=1,4 do self:TestProc("arcane","gain") end
+        return
+    end
     if command == "procs stop" then self:StopProcTest(); return end
+    if command == "curses" then self:OpenSettings("Curses"); return end
+    if command == "curses test" then self:PreviewCurseHelper(); return end
+    if command == "curses stop" then self:StopCursePreview(); return end
     if command == "help" then
         printMessage("/arc opens options. /arc toggle hides or shows the circle. /arc procs opens proc alerts; /arc procs test previews them. /arc [lock | reset | refresh].")
         return
@@ -58,6 +70,10 @@ events:SetScript("OnEvent", function(_, event, unit, powerType, third, fourth)
         addon:CreateCircle()
         addon:CreateIgniteDisplay()
         addon:CreateMinimapButton()
+        addon:CreateCurseHelper()
+        addon:CreateScrollWindow()
+        addon:RegisterSupplyProtocol()
+        addon:CreateGroupSupplies()
         SLASH_ARCANUM1 = "/arc"
         SlashCmdList.ARCANUM = function(command) addon:HandleCommand(command) end
         local getMetadata = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
@@ -77,8 +93,13 @@ events:SetScript("OnEvent", function(_, event, unit, powerType, third, fourth)
         events:RegisterEvent("TRADE_PLAYER_ITEM_CHANGED")
         events:RegisterEvent("TRADE_TARGET_ITEM_CHANGED")
         events:RegisterEvent("TRADE_ACCEPT_UPDATE")
+        events:RegisterEvent("TRADE_REQUEST_CANCEL")
         events:RegisterEvent("UI_INFO_MESSAGE")
+        events:RegisterEvent("UI_ERROR_MESSAGE")
         events:RegisterEvent("GROUP_ROSTER_UPDATE")
+        events:RegisterEvent("CHAT_MSG_WHISPER")
+        events:RegisterEvent("CHAT_MSG_ADDON")
+        events:RegisterEvent("UNIT_CONNECTION")
         events:RegisterEvent("UNIT_AURA")
         events:RegisterEvent("PLAYER_REGEN_DISABLED")
         events:RegisterEvent("PLAYER_TARGET_CHANGED")
@@ -91,18 +112,26 @@ events:SetScript("OnEvent", function(_, event, unit, powerType, third, fourth)
         local elapsed = 0
         events:SetScript("OnUpdate", function(_, delta)
             elapsed = elapsed + delta
-            if elapsed >= 1 then elapsed = 0; addon:UpdateBuffTimers() end
+            if elapsed >= 1 then elapsed = 0; addon:UpdateBuffTimers(); addon:TickSupplyProtocol() end
         end)
+    elseif event == "CHAT_MSG_ADDON" then
+        addon:ReceiveSupplyMessage(unit,powerType,third,fourth)
+    elseif event == "CHAT_MSG_WHISPER" then
+        addon:GroupSupplyWhisper(unit,powerType)
+    elseif event == "UI_ERROR_MESSAGE" then
+        addon:DriveByErrorEvent(powerType)
     elseif event:find("^UNIT_SPELLCAST_") then
+        addon:DriveBySpellEvent(event, unit, powerType, third, fourth)
         addon:SpeechEvent(event, unit, powerType, third, fourth)
     elseif event == "MERCHANT_SHOW" or event == "MERCHANT_UPDATE" or event == "MERCHANT_CLOSED" then
         addon:RestockEvent(event)
     elseif event == "PLAYER_TARGET_CHANGED" or ((event == "UNIT_AURA" or event == "UNIT_HEALTH" or event == "UNIT_FLAGS") and unit == "target") then
         addon:UpdateProcDisplay(event == "UNIT_AURA")
         if event == "PLAYER_TARGET_CHANGED" then addon:RefreshActions() end
-    elseif event == "UNIT_LEVEL" and unit == "target" then
+    elseif event == "UNIT_LEVEL" or event == "UNIT_CONNECTION" then
         addon:RefreshActions()
-    elseif event == "TRADE_ACCEPT_UPDATE" or event == "UI_INFO_MESSAGE" then
+        addon:UpdateReminders()
+    elseif event == "TRADE_ACCEPT_UPDATE" or event == "UI_INFO_MESSAGE" or event == "TRADE_REQUEST_CANCEL" then
         addon:DistributionEvent(event, unit, powerType)
     elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_REGEN_DISABLED" or (event == "UNIT_AURA" and unit == "player") then
         if event == "GROUP_ROSTER_UPDATE" then addon:RefreshActions() end
@@ -116,6 +145,7 @@ events:SetScript("OnEvent", function(_, event, unit, powerType, third, fourth)
         addon:VendingEvent(event)
     elseif event == "PLAYER_REGEN_ENABLED" or event == "SPELLS_CHANGED" or
         event == "BAG_UPDATE_DELAYED" or event == "GET_ITEM_INFO_RECEIVED" then
+        if event=="BAG_UPDATE_DELAYED" or event=="GET_ITEM_INFO_RECEIVED" then addon.supplyBagRoom=nil end
         if event == "GET_ITEM_INFO_RECEIVED" then
             local itemID = addon:Readable(unit)
             if not itemID or not addon.trackedItems or not addon.trackedItems[itemID] then return end
@@ -123,12 +153,13 @@ events:SetScript("OnEvent", function(_, event, unit, powerType, third, fourth)
         if event == "PLAYER_REGEN_ENABLED" then addon.frame:StopMovingOrSizing() end
         if addon.settingsPending and event == "PLAYER_REGEN_ENABLED" then addon:ApplySettings()
         else addon:RefreshActions() end
-        if event == "PLAYER_REGEN_ENABLED" then addon:UpdateIgniteDisplay() end
+        if event == "PLAYER_REGEN_ENABLED" then addon:ConfigureNativeProcSounds(); addon:UpdateIgniteDisplay() end
         if addon.trade.open then addon:UpdateTradeUI() end
         if event == "BAG_UPDATE_DELAYED" or event == "GET_ITEM_INFO_RECEIVED" then addon:RestockEvent(event) end
     elseif event == "SPELL_UPDATE_COOLDOWN" or event == "BAG_UPDATE_COOLDOWN" then
         addon:UpdateActionDisplays()
     elseif event == "PLAYER_ENTERING_WORLD" then
+        addon.centerSpellbookReady = true
         addon:UpdateMana()
         addon:RefreshActions()
         addon:UpdateIgniteDisplay()

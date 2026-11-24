@@ -117,6 +117,60 @@ function addon:TradeMessage(message)
     self:UpdateTradeUI()
 end
 
+-- Use the same eligible full stack for the button count and the actual offer.
+function addon:TradeReserve(kind,eligibleOnly)
+    local reserve=kind=="water" and self.db.vending.reserveWater or self.db.vending.reserveFood
+    if not self.trade.groupRequest then return reserve end
+    reserve=math.max(reserve,self.db.preparation.profiles.solo[kind])
+    if eligibleOnly and self.db.vending.bestRank then
+        -- Higher ranks kept for the mage can cover the reserve for a low-level trade.
+        local level=self.trade.level or 1
+        local playerLevel=UnitLevel and self:Readable(UnitLevel("player")) or 1
+        for id,item in pairs(self.supplyItems) do
+            if item.kind==kind and item.level>level and item.level<=playerLevel and self:KnownSpell(item.spell) then
+                reserve=math.max(0,reserve-self:ItemCount(id))
+            end
+        end
+    end
+    return reserve
+end
+
+function addon:FullTradeStack(kind, stacks, total)
+    if not stacks then stacks, total = self:SupplyStacks(kind) end
+    local reserve = self:TradeReserve(kind,true)
+    local query = C_Item and C_Item.GetItemInfo or GetItemInfo
+    for _, stack in ipairs(stacks) do
+        local maximum = query and self:Readable(select(8, query(stack.id))) or nil
+        maximum = type(maximum) == "number" and maximum > 0 and maximum or 20
+        if stack.count == maximum and total - stack.count >= reserve then return stack end
+    end
+end
+
+-- Fill presets with the fewest trade stacks, rather than offering a tiny batch
+-- of a newer rank before a complete, usable lower-rank stack. Rank still wins
+-- ties once the amount and readiness of the stack are equal.
+function addon:PresetTradeStack(stacks, desired)
+    local grouped = {}
+    for _, stack in ipairs(stacks) do
+        grouped[stack.id] = (grouped[stack.id] or 0) + stack.count
+    end
+    local query = C_Item and C_Item.GetItemInfo or GetItemInfo
+    local chosen, bestAmount, bestReady = nil, 0, false
+    for _, stack in ipairs(stacks) do
+        local maximum = query and self:Readable(select(8, query(stack.id))) or nil
+        maximum = type(maximum) == "number" and maximum > 0 and maximum or 20
+        local amount = math.min(desired, maximum, grouped[stack.id])
+        local ready = stack.count >= amount
+        if amount > bestAmount or (amount == bestAmount and
+            ((ready and not bestReady) or (ready == bestReady and
+                (not chosen or stack.rank > chosen.rank or
+                    (stack.rank == chosen.rank and stack.count > chosen.count))))) then
+            chosen, bestAmount, bestReady = stack, amount, ready
+        end
+    end
+    return chosen
+end
+
 function addon:TradeControlReason(kind)
     if InCombatLockdown() then return "Available outside combat." end
     if self.trade.job then return "Waiting for the current move." end
@@ -131,21 +185,16 @@ function addon:TradeControlReason(kind)
         return "No Arcanum-added supplies."
     end
     if kind == "fill" and totals.food >= self.trade.targets.food and totals.water >= self.trade.targets.water then
-        return "Preset reached."
+        return "Request filled."
     end
     if not free[1] then return "No free trade slots." end
-    local query = C_Item and C_Item.GetItemInfo or GetItemInfo
     for _, supplyKind in ipairs(kind == "fill" and {"water", "food"} or {kind}) do
         local stacks, total = self:SupplyStacks(supplyKind)
-        local reserve = supplyKind == "water" and self.db.vending.reserveWater or self.db.vending.reserveFood
+        local reserve = self:TradeReserve(supplyKind,true)
         if kind == "fill" then
             if totals[supplyKind] < self.trade.targets[supplyKind] and total > reserve and #stacks > 0 then return nil end
         else
-            for _, stack in ipairs(stacks) do
-                local maximum = query and self:Readable(select(8, query(stack.id))) or nil
-                maximum = type(maximum) == "number" and maximum > 0 and maximum or 20
-                if stack.count == maximum and total - stack.count >= reserve then return nil end
-            end
+            if self:FullTradeStack(supplyKind, stacks, total) then return nil end
             return "Need a full stack above your reserve."
         end
     end
@@ -197,7 +246,7 @@ function addon:TradeStep(job)
         end
         job.waits = 0
     end
-    if GetCursorInfo() then self.trade.job = nil; self:TradeMessage("Clear the cursor, then click Fill preset again."); return end
+    if GetCursorInfo() then self.trade.job = nil; self:TradeMessage("Clear the cursor, then click Add to trade again."); return end
     if job.stackKind then
         if job.moves > 0 then
             self.trade.job = nil
@@ -205,14 +254,7 @@ function addon:TradeStep(job)
             return
         end
         local stacks, total = self:SupplyStacks(job.stackKind)
-        local reserve = job.stackKind == "water" and self.db.vending.reserveWater or self.db.vending.reserveFood
-        local query = C_Item and C_Item.GetItemInfo or GetItemInfo
-        local chosen
-        for _, stack in ipairs(stacks) do
-            local maximum = query and self:Readable(select(8, query(stack.id))) or nil
-            maximum = type(maximum) == "number" and maximum > 0 and maximum or 20
-            if stack.count == maximum and total - stack.count >= reserve then chosen = stack; break end
-        end
+        local chosen = self:FullTradeStack(job.stackKind, stacks, total)
         if not chosen then
             self.trade.job = nil
             self:TradeMessage("No full " .. job.stackKind .. " stack available above your reserve. Conjure more or lower the reserve in Options.")
@@ -235,13 +277,14 @@ function addon:TradeStep(job)
         local need = math.max(0, job.targets[kind] - totals[kind])
         if need > 0 then
             local stacks, total = self:SupplyStacks(kind)
-            local reserve = kind == "water" and self.db.vending.reserveWater or self.db.vending.reserveFood
+            local reserve = self:TradeReserve(kind,true)
             local available = math.max(0, total - reserve)
             if available > 0 and #stacks > 0 then
                 if not free[1] then self.trade.job = nil; self:TradeMessage("No free trade slots. Review the offer before adding more."); return end
                 if job.moves >= 128 then self.trade.job = nil; self:TradeMessage("Fill stopped after 128 inventory moves. Review the offer."); return end
                 local prepared = job.prepared
-                local stack = prepared and self.supplyItems[prepared.id].kind == kind and prepared or stacks[1]
+                local stack = prepared and self.supplyItems[prepared.id].kind == kind and prepared
+                    or self:PresetTradeStack(stacks, math.min(need, available))
                 if stack == prepared then job.prepared = nil end
                 if self:PrepareSupplyStack(job, stacks, stack, math.min(need, available)) then return end
                 local amount = math.min(need, available, stack.count)
@@ -388,14 +431,14 @@ function addon:CreateTradeUI()
     panel:SetFrameLevel(100)
     panel:SetClampedToScreen(true)
     panel:EnableMouse(true)
-    panel:SetSize(260, 438)
+    panel:SetSize(300, 314)
     local close = panel.CloseButton or CreateFrame("Button", nil, panel, "UIPanelCloseButton")
     close:SetPoint("TOPRIGHT", -4, -4)
     close:SetScript("OnClick", function() self:CloseTradePanel() end)
     close:Show()
     panel:SetMovable(true)
     local drag = CreateFrame("Frame", nil, panel)
-    drag:SetPoint("TOPLEFT", 8, -2); drag:SetSize(180, 26)
+    drag:SetPoint("TOPLEFT", 8, -2); drag:SetSize(220, 26)
     drag:EnableMouse(true); drag:RegisterForDrag("LeftButton")
     drag:SetScript("OnDragStart", function()
         self.trade.dragging = true; panel:StartMoving()
@@ -419,11 +462,29 @@ function addon:CreateTradeUI()
         value:SetPoint("TOPLEFT", x, y); value:SetWidth(width); value:SetJustifyH("LEFT")
         return value
     end
-    panel.title = label(18, -38, 224)
-    panel.title:SetSize(224, 28)
-    panel.status = label(18, -76, 224, "GameFontHighlightSmall")
-    panel.status:SetSize(224, 98)
-    if panel.status.SetMaxLines then panel.status:SetMaxLines(6) end
+    panel.title = label(20, -38, 260, "GameFontNormalLarge")
+    panel.subtitle = label(20, -60, 260, "GameFontHighlightSmall")
+    local function divider(y)
+        local line = panel:CreateTexture(nil, "ARTWORK")
+        line:SetPoint("TOPLEFT", 20, y); line:SetSize(260, 1)
+        line:SetColorTexture(0.65, 0.52, 0.3, 0.35)
+    end
+    divider(-82)
+    label(20, -94, 100):SetText("Supply")
+    label(123, -94, 65):SetText("Offered")
+    label(218, -94, 62):SetText("Request")
+    panel.offered = {}
+    for index, kind in ipairs({"food", "water"}) do
+        local y = -119 - (index - 1) * 30
+        label(20, y, 90, "GameFontHighlight"):SetText(kind == "food" and "Food" or "Water")
+        panel.offered[kind] = label(123, y, 65, "GameFontHighlightLarge")
+    end
+    local banner = panel:CreateTexture(nil, "BACKGROUND")
+    banner:SetPoint("TOPLEFT", 16, -182); banner:SetSize(268, 34)
+    panel.statusBackground = banner
+    panel.status = label(23, -185, 254, "GameFontHighlight")
+    panel.status:SetSize(254, 28)
+    panel.status:SetJustifyH("CENTER")
     local function button(value, x, y, width, handler)
         local control = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
         control:SetSize(width, 22); control:SetPoint("TOPLEFT", x, y); control:SetText(value)
@@ -431,22 +492,49 @@ function addon:CreateTradeUI()
         return control
     end
     panel.buttons = {
-        fill=button("Fill preset", 18, -242, 224, function() self:FillTrade() end),
-        water=button("+ Water", 18, -296, 110, function() self:FillTrade("water") end),
-        food=button("+ Food", 132, -296, 110, function() self:FillTrade("food") end),
-        clear=button("Clear supplies", 18, -370, 140, function() self:ClearTradeSupplies() end),
+        fill=button("Add requested supplies", 20, -225, 260, function() self:FillTrade() end),
+        food=button("+ Food", 20, -254, 126, function() self:FillTrade("food") end),
+        water=button("+ Water", 154, -254, 126, function() self:FillTrade("water") end),
+        clear=button("Clear supplies", 20, -283, 174, function() self:ClearTradeSupplies() end),
     }
-    button("Options", 162, -370, 80, function() self:OpenSettings("Vending") end)
-    panel.reasons = {fill=label(18,-270,224), water=label(18,-324,110), food=label(132,-324,110), clear=label(18,-398,224)}
-    panel.message = label(18,-180,224,"GameFontHighlightSmall")
-    panel.message:SetSize(224,32)
+    button("Settings", 202, -283, 78, function() self:OpenSettings("Vending") end)
+    -- Keep full explanations on hover without crowding the compact panel.
+    local hints = {
+        fill="Add this player's remaining requested food and water. Review the offer, then press Trade.",
+        food="Add one full food stack above your personal reserve.",
+        water="Add one full water stack above your personal reserve.",
+        clear="Remove supplies added by Arcanum from this trade.",
+    }
+    for kind, control in pairs(panel.buttons) do
+        if control.SetMotionScriptsWhileDisabled then control:SetMotionScriptsWhileDisabled(true) end
+        control:SetScript("OnEnter", function()
+            GameTooltip:SetOwner(control, "ANCHOR_RIGHT")
+            GameTooltip:SetText(hints[kind], 1, 0.82, 0, true)
+            local reason = self:TradeControlReason(kind)
+            if reason then GameTooltip:AddLine(reason, 1, 0.8, 0.4, true) end
+            GameTooltip:Show()
+        end)
+        control:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+    panel.statusHover = CreateFrame("Frame", nil, panel)
+    panel.statusHover:SetPoint("TOPLEFT", 16, -182); panel.statusHover:SetSize(268, 34)
+    panel.statusHover:EnableMouse(true)
+    panel.statusHover:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(panel.statusHover, "ANCHOR_RIGHT")
+        GameTooltip:SetText(self.trade.message or "Review your offer, then press Trade in the trade window.", 1, 1, 1, true)
+        local _,food=self:SupplyStacks("food")
+        local _,water=self:SupplyStacks("water")
+        GameTooltip:AddLine(string.format("Usable bags: %d food, %d water",food,water),0.7,0.8,1)
+        GameTooltip:AddLine(string.format("Keep for yourself: %d food, %d water",self:TradeReserve("food"),self:TradeReserve("water")),0.7,0.8,1)
+        GameTooltip:Show()
+    end)
+    panel.statusHover:SetScript("OnLeave", function() GameTooltip:Hide() end)
     panel.inputs = {}
     for index, kind in ipairs({"food","water"}) do
-        local y = -210
-        local x = index == 1 and 18 or 132
-        label(x, y - 5, 60):SetText(kind == "food" and "Food total" or "Water total")
+        local y = -115 - (index - 1) * 30
         local input = CreateFrame("EditBox", nil, panel, "InputBoxTemplate")
-        input:SetSize(42, 20); input:SetPoint("TOPLEFT", x + 65, y)
+        input:SetSize(52, 24); input:SetPoint("TOPLEFT", 222, y)
+        input:SetFontObject("GameFontHighlight")
         input:SetAutoFocus(false); input:SetMaxLetters(3)
         local function save()
             local value = tonumber(input:GetText())
@@ -493,23 +581,57 @@ function addon:UpdateTradeUI()
     if not TradeFrame:IsShown() then return end
     self.tradeWatcher:Show()
     local totals = self:TradeOffer()
-    panel.title:SetText(self.trade.name .. "\n" .. (self.trade.class or "Unknown class"))
-    local foodStacks, food = self:SupplyStacks("food")
-    local waterStacks, water = self:SupplyStacks("water")
-    if totals then
-        panel.status:SetText(string.format("Food: %d offered / %d target · %d needed\nWater: %d offered / %d target · %d needed\nEligible bags: %d food, %d water\nKeep for yourself: %d food, %d water",
-            totals.food, self.trade.targets.food, math.max(0,self.trade.targets.food-totals.food),
-            totals.water, self.trade.targets.water, math.max(0,self.trade.targets.water-totals.water),
-            food, water, self.db.vending.reserveFood, self.db.vending.reserveWater))
+    panel.title:SetText(self.trade.name)
+    local color = RAID_CLASS_COLORS and RAID_CLASS_COLORS[self.trade.class]
+    panel.title:SetTextColor(color and color.r or 1, color and color.g or 0.82, color and color.b or 0)
+    local class = LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[self.trade.class]
+        or self.trade.class or "Custom"
+    panel.subtitle:SetText(class:sub(1,1) .. class:sub(2):lower() .. (self.trade.groupRequest and " • Group request" or " • Class request"))
+    local _, food = self:SupplyStacks("food")
+    local _, water = self:SupplyStacks("water")
+    local reserveFood, reserveWater = self:TradeReserve("food",true),self:TradeReserve("water",true)
+    local ready = totals and totals.food >= self.trade.targets.food and totals.water >= self.trade.targets.water
+    local status, r, g, b
+    if InCombatLockdown() then status, r, g, b = "Available outside combat", 1, 0.75, 0.35
+    elseif self.trade.job then status, r, g, b = "Adding supplies…", 1, 0.82, 0
+    elseif ready then
+        status, r, g, b = self.trade.targets.food+self.trade.targets.water==0 and "No supplies requested" or "Request filled\nReview and confirm trade", 0.4, 1, 0.5
     else
-        panel.status:SetText("Trade item details unavailable.")
+        status, r, g, b = "Ready to add", 1, 0.82, 0
+        if totals then
+            local missingFood=math.max(0,self.trade.targets.food-totals.food-math.max(0,food-reserveFood))
+            local missingWater=math.max(0,self.trade.targets.water-totals.water-math.max(0,water-reserveWater))
+            if missingFood>0 and missingWater>0 then status=string.format("Need %d food + %d water",missingFood,missingWater)
+            elseif missingFood>0 then status=string.format("Need %d more food",missingFood)
+            elseif missingWater>0 then status=string.format("Need %d more water",missingWater) end
+        end
     end
-    panel.message:SetText(self.trade.message or "")
+    if totals then
+        for _, kind in ipairs({"food", "water"}) do
+            panel.offered[kind]:SetText(tostring(totals[kind]))
+            local met = totals[kind] >= self.trade.targets[kind]
+            panel.offered[kind]:SetTextColor(met and 0.4 or 1, met and 1 or 0.82, met and 0.5 or 0.35)
+        end
+    else
+        status, r, g, b = "Trade details unavailable", 1, 0.75, 0.35
+        panel.offered.food:SetText("?"); panel.offered.water:SetText("?")
+    end
     for kind, control in pairs(panel.buttons) do
+        if kind == "food" or kind == "water" then
+            local stack = self:FullTradeStack(kind)
+            local name = kind == "food" and "Food" or "Water"
+            control:SetText(stack and string.format("+%d %s", stack.count, name) or ("+ " .. name))
+        end
         local reason = self:TradeControlReason(kind)
         control:SetEnabled(reason == nil)
-        panel.reasons[kind]:SetText(reason or "")
+        if kind == "fill" and reason and not ready and not self.trade.job and not InCombatLockdown() then
+            if reason~="Conjure more or lower your reserves." then status=reason end
+            r,g,b=1,0.75,0.35
+        end
     end
+    panel.status:SetText(status)
+    panel.status:SetTextColor(r, g, b)
+    panel.statusBackground:SetColorTexture(r * 0.15, g * 0.15, b * 0.15, 0.85)
 end
 
 function addon:VendingEvent(event)
@@ -518,10 +640,17 @@ function addon:VendingEvent(event)
         class = self:Readable(class)
         local level = self:Readable(UnitLevel("NPC"))
         self.trade = {open=true, owned={}, class=class, name=self:Readable(UnitName("NPC")) or "Recipient",
-            level=type(level)=="number" and level > 0 and level or nil, message="Fill preset tops up this trade's total."}
+            level=type(level)=="number" and level > 0 and level or nil, message="Add to trade tops up this player's food and water targets. Review the offer, then press Trade."}
         self.trade.key = UnitGUID and self:Readable(UnitGUID("NPC")) or self.trade.name
         local preset = self.db.vending.presets[class or "UNKNOWN"] or self.db.vending.presets.UNKNOWN
         self.trade.targets = {food=preset.food, water=preset.water}
+        local requested,key=self:GroupSupplyTradeTargets(self.trade.name,self.trade.key)
+        if requested then
+            self.trade.targets=requested
+            self.trade.groupBaseline={food=requested.food,water=requested.water}
+            self.trade.key=key
+            self.trade.groupRequest=true
+        end
         self:UpdateTradeUI()
         if self.tradeUI then
             for kind, input in pairs(self.tradeUI.inputs) do input:SetText(tostring(self.trade.targets[kind])) end

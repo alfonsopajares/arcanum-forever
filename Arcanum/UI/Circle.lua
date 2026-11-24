@@ -104,6 +104,48 @@ function addon:BindAction(button, action)
     button:Show()
 end
 
+function addon:CheckManaGemCenterSetup(actions)
+    if not self.centerSpellbookReady or self.character.manaGemCenterSetup == "done" then return end
+    local learnedGem = false
+    for _, action in ipairs(actions) do
+        if action.kind == "spell" and action.conjure then
+            learnedGem = true
+            break
+        end
+    end
+    if not self.character.manaGemCenterSetup then
+        -- Earlier builds saved Mana Gem as the default even before it was usable.
+        if not learnedGem and self.db.centerAction == "gem" then self.db.centerAction = "eatdrink" end
+        self.character.manaGemCenterSetup = "waiting"
+    end
+    if not learnedGem then return end
+    if self.db.centerAction ~= "eatdrink" then
+        self.character.manaGemCenterSetup = "done"
+        return
+    end
+    if not (StaticPopupDialogs and StaticPopup_Show) then return end
+    local dialog = "ARCANUM_SWITCH_TO_MANA_GEM"
+    StaticPopupDialogs[dialog] = StaticPopupDialogs[dialog] or {
+        text = "You can now conjure a Mana Gem. Switch your Arcanum circle from Eat + Drink to Mana Gem?",
+        button1 = "Switch to Mana Gem",
+        button2 = "Keep Eat + Drink",
+        timeout = 0,
+        hideOnEscape = true,
+        OnAccept = function()
+            if self.db.centerAction ~= "eatdrink" then return end
+            local settings = self.settings
+            local choice = settings and settings.choices["Orb action and center display"]
+            if choice then
+                choice.choose("gem")
+            else
+                self.db.centerAction = "gem"
+                self:SettingsChanged()
+            end
+        end,
+    }
+    if StaticPopup_Show(dialog) then self.character.manaGemCenterSetup = "done" end
+end
+
 function addon:RefreshCenterAction(actions)
     local gem, evocation
     for _, action in ipairs(actions.mana) do

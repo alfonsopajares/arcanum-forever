@@ -16,7 +16,7 @@ function addon:SettingsChanged()
     self:UpdateIgniteDisplay()
     if self.trade.open then self:UpdateTradeUI() end
     if self.settings then
-        self.settings.status:SetText(InCombatLockdown() and "Saved. Circle changes apply after combat." or "Settings saved automatically.")
+        self.settings.status:SetText(InCombatLockdown() and "Saved. Layout and secure button changes apply after combat." or "Settings saved automatically.")
     end
 end
 
@@ -54,12 +54,12 @@ function addon:CreateSettings()
         panel:Hide()
         window.pages[name] = panel
         local tab = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
-        tab:SetSize(148, 34)
-        tab:SetPoint("TOPRIGHT", -18, -96 - (index - 1) * 41)
+        tab:SetSize(148, 32)
+        tab:SetPoint("TOPRIGHT", -18, -96 - (index - 1) * 38)
         tab:SetText(label or name)
         local icons = {Circle="Spell_Arcane_Arcane04", Flyouts="INV_Misc_Book_09", Display="INV_Misc_Gem_Sapphire_02",
             Vending="INV_Drink_18", Preparation="INV_Misc_Food_10", Reminders="Spell_Holy_MagicalSentry",
-            Distribution="INV_Misc_Coin_01", Support="INV_Misc_QuestionMark", Messages="INV_Misc_Note_01", Restocking="INV_Misc_Rune_01", Buffs="Spell_Holy_MagicalSentry", Procs="Spell_Shadow_ManaBurn"}
+            Distribution="INV_Misc_Coin_01", Support="INV_Misc_QuestionMark", Messages="INV_Misc_Note_01", Restocking="INV_Misc_Rune_01", Buffs="Spell_Holy_MagicalSentry", Procs="Spell_Shadow_ManaBurn", Curses="Spell_Nature_RemoveCurse"}
         local icon = tab:CreateTexture(nil, "ARTWORK")
         icon:SetSize(20, 20); icon:SetPoint("LEFT", 4, 0); icon:SetTexture("Interface\\Icons\\" .. icons[name])
         window.tabs[name] = tab
@@ -213,54 +213,77 @@ function addon:CreateSettings()
     check(buffs, "Choose buff rank for the recipient's level", 0, 0, getter("recipientBuffRanks"), setter("recipientBuffRanks"))
     text(buffs, "Applies to Arcane Intellect, Dampen Magic, and Amplify Magic.\nOutside combat, left-click uses the highest learned rank your target can receive.\nDuring combat, left-click uses the lowest learned rank.\nRight-click still casts your highest learned rank on yourself.\nUnknown target levels use the lowest learned rank.\nGroup buffs keep their normal spell binding.", 0, -48, 530)
     text(buffs, "Hearthstone has its own outer circle button. Left-click it to return home.\nIt has no flyout and shows only while your Hearthstone is carried.\nHide it under Circle; reorder it under Flyouts.", 0, -186, 530)
+    check(buffs,"Enable Drive-by Intellect",0,-250,
+        function() return self.db.driveBy.enabled end,function(v) self.db.driveBy.enabled=v end)
+    check(buffs,"Use friendly target when no eligible player is under mouse",0,-280,
+        function() return self.db.driveBy.targetFallback end,function(v) self.db.driveBy.targetFallback=v end)
+    check(buffs,"Only buff players currently using mana",0,-310,
+        function() return self.db.driveBy.manaOnly end,function(v) self.db.driveBy.manaOnly=v end)
+    check(buffs,"Skip confirmed equal or stronger Intellect",0,-340,
+        function() return self.db.driveBy.skipBuffed end,function(v) self.db.driveBy.skipBuffed=v end)
+    check(buffs,"Show a brief confirmation after a successful buff",0,-370,
+        function() return self.db.driveBy.confirm end,function(v) self.db.driveBy.confirm=v end)
+    check(buffs,"Play confirmation sound",0,-400,
+        function() return self.db.driveBy.sound end,function(v) self.db.driveBy.sound=v end)
+    text(buffs,"Bind Drive-by Intellect in WoW Key Bindings → Arcanum.\nHover a player or unit frame, then press the key. Your target is preserved.\nOutside combat only; always chooses a learned rank for the recipient's level.\nUnknown levels use the lowest rank. Unreadable buffs do not block casting.",0,-446,530)
 
     local vending = page("Vending", 4)
     check(vending, "Enable vending trade controls", 0, 0,
         function() return self.db.vending.enabled end, function(value) self.db.vending.enabled = value end)
-    check(vending, "Give only ranks the recipient can use", 0, -30,
+    check(vending, "Give only ranks the recipient can use", 0, -26,
         function() return self.db.vending.bestRank end, function(value) self.db.vending.bestRank = value end)
-    check(vending, "Collapse while enchanting", 0, -60,
+    check(vending, "Collapse while enchanting", 0, -52,
         function() return self.db.vending.collapseEnchanting end, function(value) self.db.vending.collapseEnchanting = value end)
+    check(vending,"Accept supply requests from group whispers",0,-78,
+        function() return self.db.groupSupplies.whispers end,function(v) self.db.groupSupplies.whispers=v end)
     local resetVending = CreateFrame("Button", nil, vending, "UIPanelButtonTemplate")
-    resetVending:SetSize(200, 24); resetVending:SetPoint("TOPLEFT", 0, -92)
+    resetVending:SetSize(200, 24); resetVending:SetPoint("TOPLEFT", 0, -136)
     resetVending:SetText("Reset vending position")
     resetVending:SetScript("OnClick", function() self:ResetTradePosition() end)
-    number(vending, "Keep food for yourself (0–120)", 0, -130, 0, 120, false,
+    local supplies = CreateFrame("Button", nil, vending, "UIPanelButtonTemplate")
+    supplies:SetSize(220,24); supplies:SetPoint("TOPLEFT",220,-136); supplies:SetText("Open Group Supplies")
+    supplies:SetScript("OnClick",function() self:OpenGroupSupplies() end)
+    number(vending, "Keep food for yourself (0–120)", 0, -172, 0, 120, false,
         function() return self.db.vending.reserveFood end, function(value) self.db.vending.reserveFood = value end)
-    number(vending, "Keep water for yourself (0–120)", 0, -164, 0, 120, false,
+    number(vending, "Keep water for yourself (0–120)", 0, -206, 0, 120, false,
         function() return self.db.vending.reserveWater end, function(value) self.db.vending.reserveWater = value end)
-    text(vending, "Preset totals (individual items, 0–120)", 0, -200, 300, "GameFontNormal")
-    text(vending, "Food", 300, -200, 60, "GameFontNormal")
-    text(vending, "Water", 400, -200, 60, "GameFontNormal")
+    text(vending, "Default requests (items, 0–120)", 0, -240, 300, "GameFontNormal")
+    text(vending, "Food", 300, -240, 60, "GameFontNormal")
+    text(vending, "Water", 400, -240, 60, "GameFontNormal")
     local classes = {"WARRIOR","ROGUE","HUNTER","PRIEST","MAGE","WARLOCK","PALADIN","SHAMAN","DRUID","UNKNOWN"}
     for index, class in ipairs(classes) do
-        local y = -220 - (index - 1) * 24
+        local y = -262 - (index - 1) * 20
         text(vending, class == "UNKNOWN" and "Unknown class" or (class:sub(1,1) .. class:sub(2):lower()), 0, y - 5, 260)
         for column, kind in ipairs({"food","water"}) do
-            number(vending, nil, 300 + (column - 1) * 100, y, 0, 120, false,
+            local input=number(vending, nil, 300 + (column - 1) * 100, y, 0, 120, false,
                 function() return self.db.vending.presets[class][kind] end,
                 function(value) self.db.vending.presets[class][kind] = value end)
+            input:SetSize(60,18)
         end
     end
-    text(vending, "Drag the vending title to move it. – collapses; X hides for this trade.\nFill preset tops up the offer. You confirm each trade yourself.", 0, -466, 530)
+    check(vending,"Coordinate assignments and deliveries with other Arcanum mages",0,-464,
+        function() return self.db.groupSupplies.coordinate end,function(v)
+            self.db.groupSupplies.coordinate=v
+            self:TickSupplyProtocol()
+            self.groupSupplyTradePending=true
+            self:UpdateGroupSupplies()
+        end)
     local prep = page("Preparation", 5, "Prep")
     window.preparationInputs = {}
-    choice(prep, "Preparation profile", 0, {{"auto","Automatic (group)"},{"solo","Solo"},{"party","Party"},{"raid","Raid"}},
-        function() return self.db.preparation.profile end, function(value) self.db.preparation.profile = value end)
-    window.preparationInputs.food = number(prep, "Food target (individual items)", 0, -42, 0, 5000, false,
-        function() local _, p = self:ActiveProfile(); return p.food end,
-        function(value) local _, p = self:ActiveProfile(); p.food = value end)
-    window.preparationInputs.water = number(prep, "Water target (individual items)", 0, -78, 0, 5000, false,
-        function() local _, p = self:ActiveProfile(); return p.water end,
-        function(value) local _, p = self:ActiveProfile(); p.water = value end)
+    text(prep,"Prepared covers only your own food, water, and mana gems.",0,0,530)
+    window.preparationInputs.food = number(prep, "Personal food target", 0, -34, 0, 5000, false,
+        function() return self:EditablePreparationProfile().food end,
+        function(value) self:EditablePreparationProfile().food = value end)
+    window.preparationInputs.water = number(prep, "Personal water target", 0, -70, 0, 5000, false,
+        function() return self:EditablePreparationProfile().water end,
+        function(value) self:EditablePreparationProfile().water = value end)
     check(prep, "Show Prepare button", 0, -118,
         function() return self.db.preparation.showPrepare end, function(value) self.db.preparation.showPrepare = value end)
-    local estimate = CreateFrame("Button", nil, prep, "UIPanelButtonTemplate")
-    estimate:SetSize(240, 24); estimate:SetPoint("TOPLEFT", 0, -162); estimate:SetText("Set targets from current group")
-    estimate:SetScript("OnClick", function() self:SetTargetsFromGroup() end)
-    window.preparationSummary = text(prep, "", 0, -204, 530)
-    text(prep, "Click Prepare beneath the orb to cast the next needed conjure spell once.\nIt advances after supplies arrive and stops when targets are met.\nTargets plan bag stock; per-class vending presets plan each trade.\nKeybindings: open the game's Key Bindings and find Arcanum.\nPrepare, orb action, Evocation, Eat + Drink, utility, Intellect, and Armor.", 0, -340, 530)
+    window.preparationSummary = text(prep, "", 0, -164, 530)
+    text(prep,"Prepare replenishes your own supplies one cast per click.\nGroup requests and trading options are under Vending.\nKey Bindings → Arcanum includes Prepare and Toggle circle.",0,-234,530)
 
+    check(prep, "Show Comprehend popup for eligible bag scrolls", 0, -470,
+        function() return self.db.scrolls.enabled end, function(v) self.db.scrolls.enabled = v end)
     local reminders = page("Reminders", 6)
     local function reminder(key) return function() return self.db.reminders[key] end, function(value) self.db.reminders[key] = value end end
     local function reminderCheck(label, y, key)
@@ -294,7 +317,7 @@ function addon:CreateSettings()
     window.distributionContent = content
     window.distributionText = text(content, "", 0, 0, 500)
     text(distribution, "History survives reloads until it expires. Cancelled trades are never counted.", 0, -474, 530)
-    local support = page("Support", 12)
+    local support = page("Support", 13)
     check(support, "Enable troubleshooting log (last 200 entries)", 0, 0, getter("debugLogging"), setter("debugLogging"))
     choice(support, "Copy settings from another mage", -40, function() return self:CharacterOptions() end,
         function() return self.copySource or "" end, function(value) self.copySource = value end)
@@ -305,9 +328,19 @@ function addon:CreateSettings()
     clearLog:SetSize(140, 24); clearLog:SetPoint("TOPLEFT", 0, -114); clearLog:SetText("Clear log")
     clearLog:SetScript("OnClick", function() self:ClearDebugLog() end)
     local logScroll = CreateFrame("ScrollFrame", nil, support, "UIPanelScrollFrameTemplate")
-    logScroll:SetSize(510, 310); logScroll:SetPoint("TOPLEFT", 0, -150)
-    local logContent = CreateFrame("Frame", nil, logScroll); logContent:SetSize(500, 310); logScroll:SetScrollChild(logContent)
+    logScroll:SetSize(510, 230); logScroll:SetPoint("TOPLEFT", 0, -150)
+    local logContent = CreateFrame("Frame", nil, logScroll); logContent:SetSize(500, 230); logScroll:SetScrollChild(logContent)
     window.logContent, window.logText = logContent, text(logContent, "", 0, 0, 500)
+    text(support, "Made by Hollow Bell Studios", 0, -390, 530, "GameFontNormal")
+    text(support, "Enjoying Arcanum? Supporting future updates is always optional.", 0, -412, 530)
+    local supportURL = "https://buymeacoffee.com/hollowbellstudios"
+    local supportLink = CreateFrame("EditBox", nil, support, "InputBoxTemplate")
+    supportLink:SetSize(500,24); supportLink:SetPoint("TOPLEFT",8,-436); supportLink:SetAutoFocus(false)
+    supportLink:SetText(supportURL)
+    supportLink:SetScript("OnEditFocusGained",function(box) box:SetText(supportURL); box:HighlightText() end)
+    supportLink:SetScript("OnEditFocusLost",function(box) box:SetText(supportURL) end)
+    supportLink:SetScript("OnEscapePressed",function(box) box:ClearFocus() end)
+    supportLink:SetScript("OnEnterPressed",function(box) box:ClearFocus() end)
     text(support, "Settings and history are separate for each mage. Copying keeps your history.", 0, -474, 530)
 
     local messages = page("Messages", 9)
@@ -411,11 +444,33 @@ function addon:CreateSettings()
     window.procTests.all=procButton("Test all alerts",0,-336,function() self:TestProc("all") end)
     window.procTests.stop=procButton("Stop test",178,-336,function() self:StopProcTest() end)
     window.procTests.sound=procButton("Preview sound",356,-336,function() self:PlayProcSound(window.procSelection,true) end)
-    text(procs,"Test mode works without learned talents and ends after 30 seconds or entering combat.\nTest icons include disabled effects; test sounds respect your sound switches.\nHeating Up sounds at 3 stacks; Arcane Blast at 4; Winter's Chill at 5.\nMaximum stacks have a bright gold halo and a MAX STACKS callout.\nUnreadable combat data may prevent detection or timers. Test mode checks the UI only.",0,-386,530)
+    text(procs,"Test mode needs no learned talents; it ends after 30 seconds or entering combat.\nArcane Blast uses a native row of up to six short player-applied self-debuffs.\nEffects lasting over 60 seconds are excluded; other short self-effects may appear.\nIgnite and Winter's Chill use native player-owned target filters in combat.\nThreshold and target sounds still need readable data. Tests check the UI only.\nTry /arc procs test arcane to preview the new self-effect icon without casting.",0,-386,530)
     procButton("Reset alert position",0,-478,function()
         for _, key in ipairs({"point","relativePoint","x","y","scale"}) do self.db.procs[key]=self.defaults.procs[key] end
         self:ApplyProcSettings(); self:OpenSettings("Procs")
     end)
+    local curses=page("Curses",12,"Curse helper")
+    check(curses,"Enable mage curse helper",0,0,
+        function() return self.db.curseHelper.enabled end,function(v) self.db.curseHelper.enabled=v end)
+    check(curses,"Hide while solo",0,-36,
+        function() return self.db.curseHelper.hideSolo end,function(v) self.db.curseHelper.hideSolo=v end)
+    check(curses,"Lock helper position",0,-72,
+        function() return self.db.curseHelper.locked end,function(v) self.db.curseHelper.locked=v end)
+    check(curses,"Sound when a readable curse appears",0,-108,
+        function() return self.db.curseHelper.sound end,function(v) self.db.curseHelper.sound=v end)
+    number(curses,"Helper size (60–150%)",0,-154,60,150,false,
+        function() return self.db.curseHelper.scale end,function(v) self.db.curseHelper.scale=v end)
+    text(curses,"Left-click a player's square to cast Remove Lesser Curse on that player.\nYour current target is kept. Learn Remove Lesser Curse to show the live grid.\nParty and raid slots stay securely bound during combat.\nPurple CURSE indicators use Blizzard's native display when available.\n? means addon aura data is restricted; native CURSE indicators still apply.\nFar, Dead, and Offline are shown only when their state is readable.\nSounds require a readable curse and are throttled; restricted auras stay silent.\nChanging visibility or layout during combat applies after combat.",0,-214,530)
+    local previewCurse=CreateFrame("Button",nil,curses,"UIPanelButtonTemplate")
+    previewCurse:SetSize(220,26); previewCurse:SetPoint("TOPLEFT",0,-372); previewCurse:SetText("Preview squares (15 seconds)")
+    previewCurse:SetScript("OnClick",function() self:PreviewCurseHelper() end)
+    local resetCurse=CreateFrame("Button",nil,curses,"UIPanelButtonTemplate")
+    resetCurse:SetSize(220,26); resetCurse:SetPoint("TOPLEFT",0,-412); resetCurse:SetText("Reset helper position")
+    resetCurse:SetScript("OnClick",function()
+        for _,key in ipairs({"point","relativePoint","x","y","scale"}) do self.db.curseHelper[key]=self.defaults.curseHelper[key] end
+        self:ApplyCurseSettings(); self:OpenSettings("Curses")
+    end)
+    text(curses,"Preview squares cannot cast. /arc curses opens these options.\n/arc curses test previews; /arc curses stop closes the preview.",0,-460,530)
     window:Hide()
 end
 

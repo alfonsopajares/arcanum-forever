@@ -142,6 +142,7 @@ function addon:RefreshActions()
     if InCombatLockdown() then self.refreshPending = true; return end
     self.refreshPending = false
     local actions = self:BuildActions()
+    self:CheckManaGemCenterSetup(actions.mana)
     self:RefreshCenterAction(actions)
     self:RefreshPreparationActions(actions)
     local visible = {}
@@ -223,6 +224,7 @@ function addon:RefreshActions()
     self:UpdateActionDisplays()
     self:UpdateReminders()
     self:UpdateBuffTimers()
+    self:UpdateGroupSupplies()
 end
 
 function addon:DisplayCooldown(widget, action, enabled)
