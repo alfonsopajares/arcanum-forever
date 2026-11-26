@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.5 — November 26, 2026
+
+- Drive-by Intellect can refresh the same rank. The stronger-buff filter skips only higher ranks.
+- Show a self-decurse square while solo when cursed or in combat. Hide when solo remains available in Curse Helper settings.
+- Dim Curse Helper squares for players confirmed to be out of decurse range.
+
 ## 1.1.4 — November 25, 2026
 
 - Fix clicking a nearby player’s name in Group Supplies to request a trade.

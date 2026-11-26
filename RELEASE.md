@@ -1,3 +1,15 @@
+# Release 1.1.5
+
+- Submitted to CurseForge as file 9829436 on November 26, 2026. Release
+  targets Forever 1.60.1 and publishes automatically after approval. Verified
+  the saved player-facing changelog.
+- Allows same-rank Drive-by Intellect refreshes and improves the Curse Helper
+  with solo self-decurse, a solo opt-out, and out-of-range dimming.
+- Player install: `dist/Arcanum-Forever-1.1.5.zip`.
+- SHA-256: 83a2c948ae6b8a0038eb5a0308fed81e1454c84be73aee5d1479f2130ec0d168.
+- The archive contains 33 verified files. All 766 behavioral checks and 12
+  keybindings passed, plus multi-client supply and Mana Gem prompt scenarios.
+
 # Release 1.1.4
 
 - Submitted to CurseForge as file 9820577 on November 25, 2026. Release

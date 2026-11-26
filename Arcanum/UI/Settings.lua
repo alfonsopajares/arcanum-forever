@@ -219,7 +219,7 @@ function addon:CreateSettings()
         function() return self.db.driveBy.targetFallback end,function(v) self.db.driveBy.targetFallback=v end)
     check(buffs,"Only buff players currently using mana",0,-310,
         function() return self.db.driveBy.manaOnly end,function(v) self.db.driveBy.manaOnly=v end)
-    check(buffs,"Skip confirmed equal or stronger Intellect",0,-340,
+    check(buffs,"Skip targets with a stronger Intellect buff",0,-340,
         function() return self.db.driveBy.skipBuffed end,function(v) self.db.driveBy.skipBuffed=v end)
     check(buffs,"Show a brief confirmation after a successful buff",0,-370,
         function() return self.db.driveBy.confirm end,function(v) self.db.driveBy.confirm=v end)
@@ -460,7 +460,7 @@ function addon:CreateSettings()
     check(curses,"Enable mage curse helper",0,0,
         function() return self.db.curseHelper.enabled end,function(v) self.db.curseHelper.enabled=v end)
     check(curses,"Hide while solo",0,-36,
-        function() return self.db.curseHelper.hideSolo end,function(v) self.db.curseHelper.hideSolo=v end)
+        function() return self.db.curseHelper.hideWhenSolo end,function(v) self.db.curseHelper.hideWhenSolo=v end)
     check(curses,"Lock helper position",0,-72,
         function() return self.db.curseHelper.locked end,function(v) self.db.curseHelper.locked=v end)
     check(curses,"Sound when a readable curse appears",0,-108,

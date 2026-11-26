@@ -1,4 +1,5 @@
 local _, addon = ...
+local outOfRangeAlpha = 0.55
 local function stamp() return GetTime and GetTime() or 0 end
 
 local function stylePanel(frame)
@@ -121,7 +122,8 @@ function addon:CreateCurseHelper()
             if not self.db.showTooltips then return end
             self:BeginTooltip(b,"Curse helper")
             self:TooltipControl("Left-click","Remove Lesser Curse")
-            GameTooltip:AddLine("Purple CURSE: curse detected. ? means aura data is restricted.\nRange is shown only when the client provides it.\nChoose the player to cleanse; your current target is kept.",1,1,1,true)
+            if b.outOfRange then GameTooltip:AddLine("Out of range for Remove Lesser Curse.",1,0.72,0.3,true) end
+            GameTooltip:AddLine("Purple CURSE: curse detected. ? means aura data is restricted.\nDimmed squares are out of range.\nChoose the player to cleanse. Your current target is kept.",1,1,1,true)
             self:FinishTooltip()
         end)
         b:SetScript("OnLeave",function() self:HideTooltip() end)
@@ -174,38 +176,65 @@ function addon:ApplyCurseSettings()
         local slot=index<=5 and index or index-5
         b:ClearAllPoints(); b:SetPoint("TOPLEFT",6+((slot-1)%5)*76,-top-math.floor((slot-1)/5)*44)
     end
-    root:SetShown(cfg.enabled and self:KnownSpell(475))
     if RegisterStateDriver then
-        RegisterStateDriver(root.party,"visibility",cfg.hideSolo and "[group:raid] hide; [group:party] show; hide" or "[group:raid] hide; show")
+        RegisterStateDriver(root.party,"visibility","[group:raid] hide; show")
         RegisterStateDriver(root.raid,"visibility","[group:raid] show; hide")
     else
-        local raid=IsInRaid and IsInRaid() or false
         root.raid:SetShown(raid)
-        root.party:SetShown(not raid and (not cfg.hideSolo or (IsInGroup and IsInGroup())))
+        root.party:SetShown(not raid)
     end
+    local learned=self:KnownSpell(475)
     for _,b in ipairs(root.buttons) do
-        b:SetAttribute("type1",cfg.enabled and self:KnownSpell(475) and "spell" or "")
-        b:SetAttribute("spell1",self:KnownSpell(475) and 475 or nil)
+        b:SetAttribute("type1",cfg.enabled and learned and "spell" or "")
+        b:SetAttribute("spell1",learned and 475 or nil)
     end
     self:UpdateCurseHelper(false)
 end
 
+local function updateVisibility(root,enabled,hideWhenSolo,grouped,showSolo)
+    if InCombatLockdown() then return end
+    if not RegisterStateDriver then
+        root:SetShown(enabled and (grouped or (not hideWhenSolo and showSolo)))
+        return
+    end
+
+    local rule="hide"
+    if enabled then
+        rule="[group:raid] show; [group:party] show; "
+        if hideWhenSolo then
+            rule=rule.."hide"
+        else
+            -- Blizzard owns visibility in combat so the self-cast stays clickable.
+            rule=rule.."[combat] show; "..(showSolo and "show" or "hide")
+        end
+    end
+    if root.visibilityRule~=rule then
+        RegisterStateDriver(root,"visibility",rule)
+        root.visibilityRule=rule
+    end
+end
+
 function addon:UpdateCurseHelper(allowSound)
     local root,cfg=self.curseHelper,self.db.curseHelper
-    if not root or not cfg.enabled or not self:KnownSpell(475) then return end
+    if not root then return end
+    local enabled=cfg.enabled and self:KnownSpell(475)
     local raid=IsInRaid and self:Readable(IsInRaid())==true
     local grouped=raid or (IsInGroup and self:Readable(IsInGroup())==true)
-    local active=not cfg.hideSolo or grouped
+    local active=enabled and (grouped or not cfg.hideWhenSolo)
+    local selfCurse=active and not grouped and self:CurseState("player") or nil
+    local editing=not cfg.locked and self.settings and self.settings.selected=="Curses" and self.settings:IsShown()
+    updateVisibility(root,enabled,cfg.hideWhenSolo,grouped,selfCurse=="curse" or editing)
+    if not enabled then return end
     local newCurse=false
     for _,b in ipairs(root.buttons) do
-        local relevant=(b.unit:sub(1,4)=="raid") == raid
-        if relevant and UnitExists and self:Readable(UnitExists(b.unit))==true then
+        local relevant=(b.unit:sub(1,4)=="raid")==raid
+        if relevant and (grouped or b.unit=="player") and UnitExists and self:Readable(UnitExists(b.unit))==true then
             local rawName=UnitName and UnitName(b.unit)
             if issecretvalue and issecretvalue(rawName) then b.name:SetText(rawName)
             else b.name:SetText(type(rawName)=="string" and rawName or b.unit) end
             local guid=UnitGUID and self:Readable(UnitGUID(b.unit))
             if guid and guid~=b.member then b.member=guid; b.previous=nil end
-            local state=self:CurseState(b.unit)
+            local state=(b.unit=="player" and selfCurse) or self:CurseState(b.unit)
             b.curseState=state
             local dead=UnitIsDeadOrGhost and self:Readable(UnitIsDeadOrGhost(b.unit))==true
             local offline=UnitIsConnected and self:Readable(UnitIsConnected(b.unit))==false
@@ -214,7 +243,12 @@ function addon:UpdateCurseHelper(allowSound)
                 local ok,value=pcall(C_Spell.IsSpellInRange,475,b.unit)
                 if ok then range=self:Readable(value) end
             end
-            b.status:SetText(offline and "Offline" or dead and "Dead" or range==false and "Far" or state=="curse" and "CURSE" or state=="unknown" and "?" or "")
+            local outOfRange=range==false
+            if b.outOfRange~=outOfRange then
+                b.outOfRange=outOfRange
+                b:SetAlpha(outOfRange and outOfRangeAlpha or 1)
+            end
+            b.status:SetText(offline and "Offline" or dead and "Dead" or outOfRange and "Far" or state=="curse" and "CURSE" or state=="unknown" and "?" or "")
             b.status:SetTextColor(state=="curse" and 0.9 or 0.8,state=="curse" and 0.35 or 0.8,1)
             b.fill:SetColorTexture(state=="curse" and 0.45 or 0.01,state=="curse" and 0.1 or 0.12,state=="curse" and 0.6 or 0.2,0.95)
             if active and not dead and not offline and state=="curse" and b.previous~="curse" then newCurse=true end
@@ -239,6 +273,7 @@ function addon:PreviewCurseHelper()
             local cell=CreateFrame("Frame",nil,panel,"BackdropTemplate")
             cell:SetSize(72,40); cell:SetPoint("TOPLEFT",6+(i-1)*76,-28)
             styleTile(cell); cell:SetBackdropColor(i==2 and 0.55 or 0.01,i==2 and 0.1 or 0.12,i==2 and 0.7 or 0.2,1)
+            if entry[2]=="Far" then cell:SetAlpha(outOfRangeAlpha) end
             local name=cell:CreateFontString(nil,"OVERLAY","GameFontHighlightSmall"); name:SetPoint("TOP",0,-5); name:SetWidth(66); name:SetText(entry[1]); name:SetTextColor(0.5,0.82,1)
             local status=cell:CreateFontString(nil,"OVERLAY","GameFontNormalSmall"); status:SetPoint("BOTTOM",0,4); status:SetText(entry[2])
         end

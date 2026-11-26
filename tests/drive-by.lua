@@ -56,13 +56,20 @@ check(button:GetAttribute("type1")=="","optional filter rejects non-mana players
 check(reported("mana-only filter"),"filtered players get a distinct explanation")
 units.mouseover.power=secretNumber(); click()
 check(button:GetAttribute("type1")=="","protected power information cannot pass mana-only filter")
+local messagesBeforeRefresh=#messages
 units.mouseover.power=0; aura={spellId=1461}; click()
-check(button:GetAttribute("type1")=="","equal Intellect is skipped")
-check(reported("already has Arcane Intellect"),"existing buff is explained in chat")
+check(button:GetAttribute("type1")=="spell" and button:GetAttribute("spell1")==1461,
+    "equal Intellect can be refreshed")
+check(#messages==messagesBeforeRefresh,"an equal-rank refresh does not print a skip reason")
 aura={spellId=10157}; click()
 check(button:GetAttribute("type1")=="","stronger Intellect is skipped")
+check(reported("already has a stronger Arcane Intellect buff"),"skipping a stronger buff is explained in chat")
 aura={spellId=23028}; click()
-check(button:GetAttribute("type1")=="","equivalent group Intellect is skipped")
+check(button:GetAttribute("type1")=="","Arcane Brilliance blocks a lower-rank cast")
+units.mouseover.level=60; click()
+check(button:GetAttribute("type1")=="spell" and button:GetAttribute("spell1")==10157,
+    "equivalent Arcane Brilliance allows a rank-five cast")
+units.mouseover.level=20
 aura={spellId=1459}; click()
 check(button:GetAttribute("spell1")==1461,"weaker Intellect can be upgraded")
 aura={spellId=secretNumber()}; click()

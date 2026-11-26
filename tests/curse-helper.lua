@@ -18,8 +18,27 @@ end}
 C_Spell.IsSpellInRange=function(_,u) if units[u] then return units[u].range end end
 known[475]=true
 addon.db.curseHelper=addon:Clone(addon.defaults.curseHelper)
-addon:ApplyCurseSettings()
 local root=addon.curseHelper
+local registerStateDriver=RegisterStateDriver
+local function updateNativeVisibility(frame)
+    for rule in frame.stateDrivers.visibility:gmatch("[^;]+") do
+        local condition=rule:match("%[([^%]]+)%]")
+        if not condition or (condition=="group:raid" and raid) or (condition=="group:party" and grouped and not raid)
+            or (condition=="combat" and combat) then
+            local wasSecure=secure
+            secure=true
+            frame:SetShown(rule:match("(%a+)%s*$")=="show")
+            secure=wasSecure
+            return
+        end
+    end
+end
+RegisterStateDriver=function(frame,state,rule)
+    registerStateDriver(frame,state,rule)
+    if frame==root or frame==root.party or frame==root.raid then updateNativeVisibility(frame) end
+end
+addon:ApplyCurseSettings()
+updateNativeVisibility(root)
 local p=root.buttons[2]
 check(root.width==160 and root.height==52,"locked two-player helper fits only its compact tiles")
 addon.db.curseHelper.locked=false; addon:ApplyCurseSettings()
@@ -71,14 +90,20 @@ combat=false; addon:ApplyCurseSettings()
 check(not root:IsShown() and p:GetAttribute("type1")=="" and not addon.curseSettingsPending,"deferred disable clears actions outside combat")
 addon.db.curseHelper.enabled=true; addon:ApplyCurseSettings()
 check(root.scale==1.2,"deferred scale applies without changing circle scale")
+combat=true; units.party1.range=false; addon:UpdateCurseHelper(false)
+check(p.status.text=="Far" and p.alpha<1,"a confirmed far unit has a dimmed square and a range label")
+check(p.curseState=="curse","the far target still has its curse indicator")
+units.party1.range=true; addon:UpdateCurseHelper(false)
+check(p.alpha==1 and p.status.text=="CURSE" and p:GetAttribute("spell1")==475,
+    "moving into range restores full brightness without rebinding the combat click")
 units.party1.range=false; addon:UpdateCurseHelper(false)
-check(p.status.text=="Far","readable out-of-range state is distinguished")
+combat=false
 units.party1.dead=true; addon:UpdateCurseHelper(false)
 check(p.status.text=="Dead","dead state is distinguished")
 units.party1.offline=true; addon:UpdateCurseHelper(false)
 check(p.status.text=="Offline","offline state is distinguished")
 units.party1.offline=false; units.party1.dead=false; units.party1.range=secretNumber(); auras.party1={}; addon:UpdateCurseHelper(false)
-check(p.status.text=="","unreadable range cannot be classified as far")
+check(p.status.text=="" and p.alpha==1,"unreadable range clears stale dimming without classifying the target as far")
 raid=true; units.raid1={name="Raid Mage",guid="r1"}; auras.raid1={{dispelName="Curse"}}; addon:UpdateCurseHelper(false)
 check(root.buttons[6].curseState=="curse" and root.buttons[6]:GetAttribute("unit")=="raid1","raid slot keeps correct identity and curse status")
 units.raid6={name="Sixth",guid="r6"}; addon:ApplyCurseSettings()
@@ -86,6 +111,51 @@ check(root.width==388 and root.height==96 and root.buttons[11].point[3]==-50,"ra
 units.raid6=nil
 raid=false; units.party1.guid="replacement"; units.party1.name="New Member"; addon:UpdateCurseHelper(false)
 check(p.member=="replacement" and p.name.text=="New Member","party member replacement refreshes identity without reassigning tokens")
+grouped=false; units.party1=nil
+fire("GROUP_ROSTER_UPDATE")
+updateNativeVisibility(root)
+check(not root:IsShown() and root.width==96,"leaving the group collapses to a hidden solo helper")
+addon:OpenSettings("Curses")
+addon.db.curseHelper.locked=false; addon:ApplyCurseSettings()
+check(root:IsShown() and root.handle:IsShown(),"an unlocked solo helper can still be positioned from its settings page")
+addon.settings:Hide(); addon:UpdateCurseHelper(false)
+check(not root:IsShown(),"closing settings hides a curse-free solo helper again")
+addon.db.curseHelper.locked=true; addon:ApplyCurseSettings()
+auras.player={{dispelName="Magic"}}
+fire("UNIT_AURA","player")
+check(not root:IsShown(),"solo non-curse debuffs do not open the helper")
+auras.player={{dispelName="Curse"}}
+fire("UNIT_AURA","player")
+local solo=root.buttons[1]
+check(root:IsShown() and solo.status.text=="CURSE" and solo:GetAttribute("unit")=="player"
+    and solo:GetAttribute("spell1")==475,"a solo curse reveals a clickable self square")
+auras.player={}
+fire("UNIT_AURA","player")
+check(not root:IsShown(),"clearing the solo curse hides the helper")
+combat=true
+updateNativeVisibility(root)
+fire("PLAYER_REGEN_DISABLED")
+check(root:IsShown() and solo:GetAttribute("type1")=="spell","native visibility keeps self-decurse clickable during solo combat")
+auras.player={secretNumber()}
+fire("UNIT_AURA","player")
+check(solo.status.text=="?" and solo.native,"solo combat retains the native curse indicator with restricted aura data")
+combat=false; auras.player={}
+fire("PLAYER_REGEN_ENABLED")
+updateNativeVisibility(root)
+check(not root:IsShown(),"a curse-free solo player returns to a hidden helper after combat")
+addon.db.curseHelper.hideWhenSolo=true
+addon:ApplyCurseSettings()
+auras.player={{dispelName="Curse"}}
+fire("UNIT_AURA","player")
+check(not root:IsShown(),"Hide when solo suppresses the helper even while cursed")
+combat=true
+updateNativeVisibility(root)
+check(not root:IsShown(),"Hide when solo also suppresses the combat fallback")
+combat=false; grouped=true
+units.party1={name="New Member",guid="replacement"}
+fire("GROUP_ROSTER_UPDATE")
+updateNativeVisibility(root)
+check(root:IsShown() and root.width==160,"the grouped helper stays available with the solo opt-out enabled")
 known[475]=nil; addon:ApplyCurseSettings()
 check(not root:IsShown() and p:GetAttribute("type1")=="","unknown decurse keeps live grid hidden and actions empty")
 addon:HandleCommand("curses test")
@@ -96,4 +166,5 @@ combat=true; addon:PreviewCurseHelper()
 check(not addon.cursePreview:IsShown(),"cannot start preview during combat")
 combat=false; addon:HandleCommand("curses")
 check(addon.settings.pages.Curses:IsShown() and addon.settings.tabs.Support.point[3]<addon.settings.tabs.Curses.point[3],"settings page opens and Support stays last")
+RegisterStateDriver=registerStateDriver
 io.write("Passed ",checks," curse helper, native display, combat, sound, roster, and preview checks.\n")

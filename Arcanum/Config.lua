@@ -39,7 +39,7 @@ addon.defaults = {
     colorTheme = "arcane",
     recipientBuffRanks = true,
     driveBy = {enabled=true, targetFallback=false, manaOnly=false, skipBuffed=true, confirm=true, sound=false},
-    curseHelper = {enabled=true,hideSolo=true,locked=true,sound=false,scale=100,
+    curseHelper = {enabled=true,hideWhenSolo=false,locked=true,sound=false,scale=100,
         point="TOPLEFT",relativePoint="CENTER",x=190,y=60},
     minimap = {enabled=true, angle=225},
     scrolls = {enabled=true,point="CENTER",relativePoint="CENTER",x=260,y=0},
@@ -140,6 +140,7 @@ function addon:NormalizeSettings()
     if self.db.centerAction == "drink" or self.db.centerAction == "water" then self.db.centerAction = "eatdrink" end
     self.db.preparation.showEatDrink = nil
     self.db.groupSupplies.autoShow = nil
+    self.db.curseHelper.hideSolo = nil
 end
 
 function addon:CharacterOptions()

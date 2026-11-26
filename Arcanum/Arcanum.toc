@@ -3,7 +3,7 @@
 ## Notes: A circular preparation, travel, and utility toolbox for mages.
 ## Author: Hollow Bell Studios
 ## X-License: MIT
-## Version: 1.1.4
+## Version: 1.1.5
 ## SavedVariables: ArcanumDB
 
 Config.lua

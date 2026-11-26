@@ -51,9 +51,8 @@ function addon:DriveByEligible(unit)
     return true
 end
 
--- Skip only a confirmed equal/higher rank. Unreadable or unsupported aura
--- information must not silently prevent an otherwise valid manual buff.
-function addon:DriveByAlreadyBuffed(unit, selected)
+-- Equal ranks can be refreshed. Only a confirmed stronger aura blocks the cast.
+function addon:DriveByHasStrongerIntellect(unit, selected)
     local rankByID={}; for index,id in ipairs(intellectRanks) do rankByID[id]=index end
     rankByID[23028]=#intellectRanks -- Arcane Brilliance grants rank-five Intellect.
     local wanted=rankByID[selected]
@@ -69,7 +68,7 @@ function addon:DriveByAlreadyBuffed(unit, selected)
         else return false end
         if not ok or self:Readable(aura)==nil then return false end
         local id=self:Readable(aura.spellId)
-        if type(id)=="number" and rankByID[id] and rankByID[id]>=wanted then return true end
+        if type(id)=="number" and rankByID[id] and rankByID[id]>wanted then return true end
     end
     return false
 end
@@ -97,8 +96,8 @@ function addon:ConfigureDriveBy(capture)
     if not unit then return skip(reason or "Hover a living, friendly player.") end
     local spell=self:DriveByRank(unit)
     if not spell then return skip("You haven’t learned an Arcane Intellect rank this player can receive.") end
-    if self.db.driveBy.skipBuffed and self:DriveByAlreadyBuffed(unit,spell) then
-        return skip("That player already has Arcane Intellect of equal or greater strength.")
+    if self.db.driveBy.skipBuffed and self:DriveByHasStrongerIntellect(unit,spell) then
+        return skip("That player already has a stronger Arcane Intellect buff.")
     end
     if capture and C_Spell then
         if C_Spell.IsSpellInRange then

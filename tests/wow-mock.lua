@@ -9,9 +9,10 @@ for _, name in ipairs({"SetClampedToScreen", "SetMovable", "RegisterForDrag", "S
     "SetItemByID", "AddLine", "SetTextColor", "SetStatusBarTexture", "SetStatusBarColor",
     "SetFrameStrata", "SetBlendMode", "RegisterEvent", "UnregisterEvent", "SetBackdrop", "SetBackdropColor", "SetBackdropBorderColor",
     "SetAutoFocus", "SetMaxLetters", "SetMultiLine", "SetNormalTexture", "SetPushedTexture", "SetHighlightTexture", "SetFontObject",
-    "ClearFocus", "SetAlpha", "SetVertexColor", "SetScrollChild"}) do
+    "ClearFocus", "SetVertexColor", "SetScrollChild"}) do
     methods[name] = function() end
 end
+function methods:SetAlpha(alpha) self.alpha = alpha end
 local function object(parent, template)
     return setmetatable({parent = parent, template = template or "", attributes = {}, refs = {}, scripts = {}, shown = true}, objectMT)
 end
