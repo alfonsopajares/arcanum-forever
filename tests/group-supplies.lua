@@ -4,7 +4,7 @@ local saved={db=addon.db,distribution=addon.distribution,known=known,inventory=i
     raid=IsInRaid,total=GetNumGroupMembers,party=GetNumSubgroupMembers,name=UnitName,
     guid=UnitGUID,class=UnitClass,level=UnitLevel,connected=UnitIsConnected,same=UnitIsUnit,time=GetTime,
     offer=addon.TradeOffer,trade=addon.trade,realm=GetRealmName,normalizedRealm=GetNormalizedRealmName,
-    range=CheckInteractDistance,begin=BeginTrade,dead=UnitIsDeadOrGhost}
+    range=CheckInteractDistance,initiate=InitiateTrade,dead=UnitIsDeadOrGhost}
 addon.db=addon:Clone(addon.defaults)
 addon.db.preparation.profiles.solo={food=20,water=20}
 addon.db.vending.reserveFood,addon.db.vending.reserveWater=20,20
@@ -44,6 +44,14 @@ addon.db.preparation.showPrepare=true
 shortcut.scripts.OnClick()
 check(addon:ActiveProfile()=="solo" and addon.prepareButton.text=="Prepared!","personal Prepared ignores other people's needs")
 check(window:IsShown() and window.title.text=="Group Supplies (3)","circle shortcut opens the window with online pending recipients")
+local coverage,menu=window.coverage,window.servingMenu
+coverage.scripts.OnClick()
+check(coverage.caption.text=="Whole group" and menu:IsShown() and menu.point[3]=="BOTTOMLEFT",
+    "coverage shows the selected value and opens a list directly beneath the field")
+menu.rows[2].scripts.OnClick(menu.rows[2])
+check(coverage.caption.text=="Handpicked" and not menu:IsShown(),"choosing a coverage option updates the field and closes the list")
+coverage.scripts.OnClick()
+menu.rows[1].scripts.OnClick(menu.rows[1])
 local p=addon:GroupPreparationProfile()
 check(p.food==80 and p.water==60,"group plan keeps personal stock and adds online class requests")
 check(p.nextSupply.water.id==5505,"group conjuring chooses a learned water rank usable at recipient level")
@@ -51,13 +59,14 @@ check(window.conjure:GetAttribute("spell1")==5505,"separate group button casts t
 check(window.conjure.secureWrappers.OnClick:find('[combat] combat',1,true),"group conjuring is securely blocked in combat")
 local tradeUnit,tradeCount
 tradeCount=0
-BeginTrade=function(unit) tradeUnit=unit; tradeCount=tradeCount+1 end
+InitiateTrade=function(unit) tradeUnit=unit; tradeCount=tradeCount+1 end
 CheckInteractDistance=function(unit,distance) check(unit=="party1" and distance==2,"range check uses the live group unit and trade distance"); return false end
 window.rows[1].trade.scripts.OnClick()
 check(tradeCount==0 and window.need.text=="Out of range","distant name click explains range without starting a trade")
 CheckInteractDistance=function() return true end
 window.rows[1].trade.scripts.OnClick()
-check(tradeCount==1 and tradeUnit=="party1","nearby name click opens trade with the correct roster member")
+check(tradeCount==1 and tradeUnit=="party1" and window.need.text=="Requesting trade with Rogue",
+    "nearby name click requests an outgoing trade with the correct roster member")
 addon.trade.open=true
 window.rows[1].trade.scripts.OnClick()
 check(tradeCount==1 and window.need.text=="Finish the current trade first","name click preserves an existing trade")
@@ -181,7 +190,7 @@ IsInRaid,GetNumGroupMembers,GetNumSubgroupMembers=saved.raid,saved.total,saved.p
 UnitName,UnitGUID,UnitClass,UnitLevel=saved.name,saved.guid,saved.class,saved.level
 UnitIsConnected,UnitIsUnit,GetTime=saved.connected,saved.same,saved.time
 GetRealmName,GetNormalizedRealmName=saved.realm,saved.normalizedRealm
-CheckInteractDistance,BeginTrade,UnitIsDeadOrGhost=saved.range,saved.begin,saved.dead
+CheckInteractDistance,InitiateTrade,UnitIsDeadOrGhost=saved.range,saved.initiate,saved.dead
 addon.TradeOffer,addon.trade=saved.offer,saved.trade
 addon.groupWhisperTimes={}; addon.groupSuppliesOpened=nil
 addon:RefreshActions()

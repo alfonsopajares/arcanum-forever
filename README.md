@@ -175,6 +175,10 @@ disable food, water, mana gem, armor, Intellect, and reagent reminders separatel
 Choose supply thresholds, combat suppression, and group-only display. Reminders
 are silent and do not post messages in chat.
 
+If you have learned Ice Barrier, Arcanum reminds you to refresh it when Frigid
+Power is missing and the spell is ready. You can also enable a separate reminder
+for a missing shield.
+
 Open `/arc procs` for Clearcasting, Missile Barrage, Fingers of Frost, Heating Up,
 Arcane Blast, Winter's Chill, and personal Ignite alerts. Each effect has its own
 visibility and sound controls. Unlock the row to drag it, or change its scale.

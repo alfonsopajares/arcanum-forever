@@ -1,5 +1,7 @@
 local _, addon = ...
 
+addon.iceBarrierRanks = {11426,13031,13032,13033}
+
 -- Ranks are ordered from lowest to highest. Candidates are never shown just
 -- because they exist in this catalog: the player's learned spells are checked.
 addon.spells = {
@@ -33,7 +35,7 @@ addon.spells = {
       items = {5349,1113,1114,1487,8075,8076,22895}, kind = "food", levels = {1,5,15,25,35,45,55}, self = true },
     { category = "defenses", ranks = {12472}, self = true }, -- Cold Snap (Forever/vanilla ID)
     { category = "defenses", ranks = {11958}, self = true }, -- Ice Block (Forever/vanilla ID)
-    { category = "defenses", ranks = {11426,13031,13032,13033}, self = true },
+    { category = "defenses", ranks = addon.iceBarrierRanks, self = true },
     { category = "defenses", ranks = {1463,8494,8495,10191,10192,10193}, self = true },
     { category = "defenses", ranks = {543,8457,8458,10223,10225}, self = true },
     { category = "defenses", ranks = {6143,8461,8462,10177,28609}, self = true },

@@ -1,3 +1,14 @@
+# Release 1.1.4
+
+- Submitted to CurseForge as file 9820577 on November 25, 2026. Release
+  targets Forever 1.60.1 and publishes automatically after approval. Initial
+  status was Processing File. Verified the saved changelog.
+- Adds the Ice Barrier reminder and fixes and restyles controls in Group Supplies.
+- Player install: `dist/Arcanum-Forever-1.1.4.zip`.
+- SHA-256: ce9200fdcb044a8e72a7c75d02c8638bae28295732c3925f537762d40a0f2259.
+- The archive contains 33 verified files. All 750 behavioral checks and 12
+  keybindings passed, plus multi-client supply and Mana Gem prompt scenarios.
+
 # Release 1.1.3
 
 - Submitted to CurseForge as file 9783662 on November 23, 2026. Release

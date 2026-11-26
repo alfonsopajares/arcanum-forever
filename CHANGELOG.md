@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.4 — November 25, 2026
+
+- Fix clicking a nearby player’s name in Group Supplies to request a trade.
+- Give the Group Supplies coverage selector a dropdown field and a compact options list.
+- Remind mages with Ice Barrier to refresh Frigid Power, with an optional shield alert.
+
 ## 1.1.3 — November 23, 2026
 
 ### November 23 — serving a party or raid

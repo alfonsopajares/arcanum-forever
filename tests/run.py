@@ -48,3 +48,4 @@ for binding in bindings:
 print(f"Validated {len(bindings)} native binding entries against secure buttons and labels.")
 check_coordination(create_client)
 create_client().execute((ROOT / "tests" / "center-action.lua").read_text(encoding="utf-8-sig"))
+create_client().execute((ROOT / "tests" / "ice-barrier.lua").read_text(encoding="utf-8-sig"))

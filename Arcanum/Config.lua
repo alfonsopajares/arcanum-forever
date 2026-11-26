@@ -64,6 +64,7 @@ addon.defaults = {
     reminders = {
         enabled=true, hideInCombat=true, groupOnly=false,
         food=true, water=true, gems=true, armor=true, intellect=true, reagents=true,
+        iceBarrier=true, iceBarrierShield=false,
         lowFood=20, lowWater=20, lowReagents=5,
     },
     categoryEnabled = {},

@@ -106,13 +106,13 @@ function addon:TradeWithSupplyMember(member)
     if not current or not current.unit then notice="Player unavailable"
     elseif self.trade and self.trade.open then notice="Finish the current trade first"
     elseif UnitIsDeadOrGhost and self:Readable(UnitIsDeadOrGhost(current.unit))==true then notice="Player unavailable"
-    elseif not CheckInteractDistance or not BeginTrade then notice="Trade is unavailable"
+    elseif not CheckInteractDistance or not InitiateTrade then notice="Trade is unavailable"
     else
         local ok,near=pcall(CheckInteractDistance,current.unit,2)
         if not ok or self:Readable(near)~=true then notice="Out of range"
         else
-            local started,result=pcall(BeginTrade,current.unit)
-            notice=started and result~=false and ("Opening trade with "..current.name) or "Unable to open trade"
+            local requested=pcall(InitiateTrade,current.unit)
+            notice=requested and ("Requesting trade with "..current.name) or "Unable to request trade"
         end
     end
     self.groupTradeNotice={text=notice,untilTime=GetTime()+4}
@@ -167,20 +167,29 @@ local function servingMenu(self,anchor,choices)
     local window=self.groupSuppliesWindow
     local menu=window.servingMenu
     window.addList:Hide()
-    menu:ClearAllPoints(); menu:SetPoint("TOPRIGHT",anchor,"BOTTOMRIGHT",0,0)
+    menu:ClearAllPoints()
+    if anchor==window.coverage then
+        menu:SetPoint("TOPLEFT",anchor,"BOTTOMLEFT",0,-2)
+    else
+        menu:SetPoint("TOPRIGHT",anchor,"BOTTOMRIGHT",0,-2)
+    end
     menu:SetSize(190,#choices*22+10)
     for index,choice in ipairs(choices) do
         local button=menu.rows[index]
         if not button then
-            button=CreateFrame("Button",nil,menu,"UIPanelButtonTemplate")
+            button=CreateFrame("Button",nil,menu)
             button:SetPoint("TOPLEFT",5,-5-(index-1)*22); button:SetSize(180,22)
+            button.caption=label(button,"",8,-5,164)
+            local hover=button:CreateTexture(nil,"HIGHLIGHT")
+            hover:SetAllPoints()
+            hover:SetColorTexture(1,0.78,0.32,0.2)
             button:SetScript("OnClick",function(b)
                 if InCombatLockdown() then return end
                 menu:Hide(); b.select()
             end)
             menu.rows[index]=button
         end
-        button:SetText(choice[1]); button.select=choice[2]; button:Show()
+        button.caption:SetText(choice[1]); button.select=choice[2]; button:Show()
     end
     for index=#choices+1,#menu.rows do menu.rows[index]:Hide() end
     menu:Show()
@@ -289,19 +298,41 @@ function addon:CreateGroupSupplies()
     end)
     help:SetScript("OnLeave",function() self:HideTooltip() end)
     frame.body=CreateFrame("Frame",nil,frame); frame.body:SetPoint("TOPLEFT",0,-32); frame.body:SetSize(340,150)
-    local coverage=CreateFrame("Button",nil,frame.body,"UIPanelButtonTemplate")
+    local coverage=CreateFrame("Button",nil,frame.body,"BackdropTemplate")
     frame.coverage=coverage
     coverage:SetSize(135,20); coverage:SetPoint("TOPLEFT",12,2)
+    coverage:SetBackdrop({
+        bgFile="Interface\\Buttons\\WHITE8X8",
+        edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize=10,
+        insets={left=2,right=2,top=2,bottom=2},
+    })
+    coverage:SetBackdropColor(0.04,0.05,0.07,1)
+    coverage:SetBackdropBorderColor(0.58,0.46,0.29,1)
+    coverage.caption=label(coverage,"",7,-4,103)
+    coverage.caption:SetWordWrap(false)
+    local divider=coverage:CreateTexture(nil,"ARTWORK")
+    divider:SetSize(1,12)
+    divider:SetPoint("RIGHT",-22,0)
+    divider:SetColorTexture(0.58,0.46,0.29,0.75)
+    local arrow=coverage:CreateTexture(nil,"ARTWORK")
+    arrow:SetSize(16,16)
+    arrow:SetPoint("RIGHT",-3,0)
+    arrow:SetTexture("Interface\\Buttons\\UI-ScrollBar-ScrollDownUp")
     coverage:SetScript("OnClick",function()
         if InCombatLockdown() then return end
         if frame.servingMenu:IsShown() then frame.servingMenu:Hide() else coverageMenu(self,coverage) end
     end)
     coverage:SetScript("OnEnter",function()
+        coverage:SetBackdropBorderColor(0.87,0.7,0.42,1)
         local tip=self:BeginTooltip(coverage,"Serving coverage")
         tip:AddLine("Choose the players or raid groups you want to serve.",1,1,1,true)
         self:FinishTooltip()
     end)
-    coverage:SetScript("OnLeave",function() self:HideTooltip() end)
+    coverage:SetScript("OnLeave",function()
+        coverage:SetBackdropBorderColor(0.58,0.46,0.29,1)
+        self:HideTooltip()
+    end)
     for index,kind in ipairs({"food","water"}) do
         local headerIcon=CreateFrame("Button",nil,frame.body)
         headerIcon:SetSize(18,18); headerIcon:SetPoint("TOPLEFT",169+(index-1)*58,2)
@@ -393,7 +424,7 @@ function addon:UpdateGroupSupplies()
     if collapsed then frame:SetSize(220,30); frame.addList:Hide(); frame.servingMenu:Hide(); return end
     local scope=self.character.supplyScope or "all"
     local caption=({all="Whole group",mine="My subgroup",custom="Handpicked"})[scope] or ("Groups "..scope)
-    frame.coverage:SetText(caption.." ▼")
+    frame.coverage.caption:SetText(caption)
     local plan=self:GroupPreparationProfile()
     table.sort(pending,function(a,b)
         local first=plan.ready[a.key] and plan.near[a.key] or false

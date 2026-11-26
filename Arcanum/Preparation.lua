@@ -291,6 +291,31 @@ function addon:PlayerBuffs()
     return nil -- Suppress missing-buff warnings if the scan was incomplete.
 end
 
+function addon:LearnedIceBarrier()
+    for index = #self.iceBarrierRanks, 1, -1 do
+        local spell = self.iceBarrierRanks[index]
+        if self:KnownSpell(spell) then return spell end
+    end
+end
+
+local frigidPower = {1326891}
+
+local function iceBarrierReminder(self, spell, options, buffs)
+    local missingPower = options.iceBarrier and self:HasPlayerBuff(frigidPower, buffs) == false
+    local missingShield = options.iceBarrierShield and self:HasPlayerBuff(self.iceBarrierRanks, buffs) == false
+    if not (missingPower or missingShield) then return end
+
+    local query = C_Spell and C_Spell.GetSpellCooldown
+    if not query then return end
+    local ok, cooldown = pcall(query, spell)
+    if not ok then return end
+    cooldown = self:Readable(cooldown)
+    if not cooldown or self:Readable(cooldown.isEnabled) ~= true or self:Readable(cooldown.duration) ~= 0 then return end
+
+    local name = self:SpellInfo(spell) or "Ice Barrier"
+    return missingPower and ("Refresh " .. name) or (name .. " shield missing")
+end
+
 function addon:UpdateReminders()
     if not self.reminderGlow then return end
     local options, messages, categories, buffMessages = self.db.reminders, {}, {}, {}
@@ -319,6 +344,11 @@ function addon:UpdateReminders()
                 end
             end
         end
+        local barrier = (options.iceBarrier or options.iceBarrierShield) and self:LearnedIceBarrier()
+        local buffs
+        if (options.armor or options.intellect or barrier) and not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then
+            buffs = self:PlayerBuffs()
+        end
         if options.armor or options.intellect then
             local armorRanks, intellectRanks = {}, {}
             local armorKnown, intellectKnown, armorName
@@ -335,7 +365,6 @@ function addon:UpdateReminders()
                     end
                 end
             end
-            local buffs = not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) and self:PlayerBuffs() or nil
             if options.armor and armorKnown and self:HasPlayerBuff(armorRanks, buffs) == false then
                 local missing = (armorName or "Mage armor") .. " missing"
                 buffMessages[#buffMessages + 1] = missing
@@ -346,6 +375,13 @@ function addon:UpdateReminders()
                 local missing = (self:SpellInfo(1459) or "Arcane Intellect") .. " missing"
                 buffMessages[#buffMessages + 1] = missing
                 warn("buffs", missing .. ". Open Buffs or use the Intellect keybinding.")
+            end
+        end
+        if barrier then
+            local missing = iceBarrierReminder(self, barrier, options, buffs)
+            if missing then
+                buffMessages[#buffMessages + 1] = missing
+                warn("defenses", missing .. ". Open Defenses to cast Ice Barrier.")
             end
         end
         if options.reagents then
@@ -451,6 +487,9 @@ end
 
 function addon:RefreshPreparationUI()
     if not self.settings then return end
+    if self.settings.iceBarrierOptions and self.settings.selected == "Reminders" then
+        self.settings.iceBarrierOptions:SetShown(self:LearnedIceBarrier() ~= nil)
+    end
     if self.settings.preparationSummary then
         local _, profile = self:ActiveProfile()
         local inputs = self:EditablePreparationProfile()

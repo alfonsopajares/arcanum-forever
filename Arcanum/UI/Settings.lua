@@ -286,8 +286,8 @@ function addon:CreateSettings()
         function() return self.db.scrolls.enabled end, function(v) self.db.scrolls.enabled = v end)
     local reminders = page("Reminders", 6)
     local function reminder(key) return function() return self.db.reminders[key] end, function(value) self.db.reminders[key] = value end end
-    local function reminderCheck(label, y, key)
-        local read, write = reminder(key); check(reminders, label, 0, y, read, write)
+    local function reminderCheck(label, y, key, parent)
+        local read, write = reminder(key); check(parent or reminders, label, 0, y, read, write)
     end
     reminderCheck("Enable reminders (master switch)", 0, "enabled")
     reminderCheck("Hide reminders during combat", -32, "hideInCombat")
@@ -301,7 +301,14 @@ function addon:CreateSettings()
     for index, entry in ipairs({{"lowFood","Food warning below"},{"lowWater","Water warning below"},{"lowReagents","Reagent warning below"}}) do
         local read, write = reminder(entry[1]); number(reminders, entry[2], 0, -304 - (index - 1) * 36, 0, 120, false, read, write)
     end
-    text(reminders, "Missing buffs show a prominent alert below the circle. No chat or sound spam.\nUnknown/protected buff information suppresses missing-buff warnings.", 0, -432, 530)
+    local barrierOptions = CreateFrame("Frame", nil, reminders)
+    barrierOptions:SetPoint("TOPLEFT", 0, -416)
+    barrierOptions:SetSize(530, 52)
+    barrierOptions:Hide()
+    window.iceBarrierOptions = barrierOptions
+    reminderCheck("Refresh Ice Barrier when Frigid Power is missing", 0, "iceBarrier", barrierOptions)
+    reminderCheck("Remind when the Ice Barrier shield is missing", -26, "iceBarrierShield", barrierOptions)
+    text(reminders, "Missing buffs show an alert below the circle.\nWarnings require readable buff information.", 0, -476, 530)
 
     local distribution = page("Distribution", 7, "Trades")
     check(distribution, "Track completed food/water deliveries", 0, 0,
